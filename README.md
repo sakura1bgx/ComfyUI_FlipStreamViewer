@@ -90,7 +90,7 @@ Provide the following text inputs in the viewer:
 ## Additional Features
 
 - **LoRA Preview**: At the bottom of the right pane; click to jump to the Civitai LoRA page if found.
-- **Auto-hide**: Click to hide controls and images; the viewer auto-hides after 5 minutes of inactivity.
+- **Auto-hide**: Click to hide controls and images or the viewer auto-hides after 5 minutes of inactivity.
 
 ## Quality and Speed
 
