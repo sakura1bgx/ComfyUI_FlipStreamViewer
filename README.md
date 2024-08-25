@@ -13,9 +13,12 @@ Please install the following nodes via ComfyUI-Manager:
 - LoRA Tag Loader for ComfyUI
 
 ## Getting Started
+1. Navigate to the custom_nodes directory of ComfyUI. Run the following command to clone the repository:
 
-1. **Run ComfyUI** and load the `workflow.json` file located in the `workflows` folder.
-2. Access the viewer at the following URL if ComfyUI is running at `http://localhost:8188`:
+`git clone https://github.com/sakura1bgx/ComfyUI_FlipStreamViewer.git`
+
+2. **Run ComfyUI** and load the `workflow.json` file located in the `workflows` folder.
+3. Access the viewer at the following URL if ComfyUI is running at `http://localhost:8188`:
 
 `http://localhost:8188/viewer`
 
