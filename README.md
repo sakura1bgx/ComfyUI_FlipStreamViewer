@@ -17,7 +17,7 @@ Please install the following nodes via ComfyUI-Manager:
 1. **Run ComfyUI** and load the `workflow.json` file located in the `workflows` folder.
 2. Access the viewer at the following URL if ComfyUI is running at `http://localhost:8188`:
 
-http://localhost:8188/viewer
+`http://localhost:8188/viewer`
 
 3. To respond to viewer input:
 - Check 'Extra options', 'Auto Queue', and 'instant' on the ComfyUI control panel.
