@@ -2,6 +2,8 @@
 
 **ComfyUI_FlipStreamViewer** is a tool that provides a viewer interface for flipping images with frame interpolation, allowing you to create high-fidelity pseudo-videos without needing AnimateDiff.
 
+![viewer_snapshot](https://github.com/user-attachments/assets/61e79e55-111e-40b9-8417-f93acb90aed7)
+
 ## Required Custom Nodes
 
 Please install the following nodes via ComfyUI-Manager:
