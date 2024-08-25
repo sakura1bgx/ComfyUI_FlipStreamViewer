@@ -45,7 +45,7 @@ append text
 
 ### Limitations
 
-- There is no save function available; please customize your workflow as needed.
+- There is no save video function available; please customize your workflow as needed.
 - Excessively long text may cause exceptions.
 - The keywords `BREAK`, `AND`, and `<lora:...>` cannot be used in the prompt.
 
