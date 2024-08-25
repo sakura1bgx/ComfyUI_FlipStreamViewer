@@ -1,0 +1,1 @@
+{"prompt": "aGlnaHJlcywgb24gdGFibGUsIGlkZWFsIGJhY2tncm91bmQsIHNvbG8sIGJsYWNrIGNhdCwKLS0tLQotIAotIHNpdHRpbmcKLS0tLQo=", "negativePrompt": "", "seed": 0, "keepSeed": 0, "steps": 13, "cfg": 4, "interval": 30, "sampler": "dpmpp_2m,sgm_uniform", "checkpoint": "", "lora": "", "startstep": 0, "frames": 2, "framewait": 1, "offsetX": 0, "offsetY": 0, "scale": 100}
