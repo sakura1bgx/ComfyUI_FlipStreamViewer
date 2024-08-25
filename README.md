@@ -19,10 +19,9 @@ Please install the following nodes via ComfyUI-Manager:
 
 http://localhost:8188/viewer
 
-
 3. To respond to viewer input:
-- Check 'Extra options', 'Auto Queue', and 'instant'.
-- Click the 'Queue Prompt' button on the ComfyUI control panel.
+- Check 'Extra options', 'Auto Queue', and 'instant' on the ComfyUI control panel.
+- Then click the 'Queue Prompt' button.
 
 4. The 'preset' folder may be created in the current directory for saving and loading preset files. Sample presets can be found in the `presetsamples` folder.
 
@@ -30,14 +29,14 @@ http://localhost:8188/viewer
 
 Use the following format for input prompts. The 'pre text' and 'append text' sections apply to all frames. The separator `----` should consist of four hyphens, and each line of 'frameN text' applies to individual frames.
 
-'''
+```
 pre text,
 ----
 - frame1 text
 - frame2 text
 ----
 append text
-'''
+```
 
 ### Limitations
 
