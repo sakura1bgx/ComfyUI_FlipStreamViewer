@@ -101,7 +101,7 @@ Provide the following text inputs in the viewer:
 ## Quality and Speed
 
 - Use more higher-quality checkpoint models.
-- To improve stability between frames, use an intentional prompt in the 'pre text' to set a consistent background, such as `on desk, ideal background`.
+- To enhance stability between frames, use a deliberate prompt in the 'pre text' to establish a consistent background, such as `on desk, ideal background`. Additionally, using LORA can also improve stability.
 - Select the appropriate words in 'frameN text' to achieve the desired motion. This can be reused in other prompts.
 - Since 0sta is more flexible, it's better to change the Nsta only after testing those first.
 - Recommended speed setting: `4stp 1cfg 0sta dpmpp_2m,sgm_uniform` with `<lora:TCD-SDXL:1>`. You can download the TCD LoRA from [Civitai](https://civitai.com/models/395638). Rename the file to `TCD-SDXL.safetensors`.
