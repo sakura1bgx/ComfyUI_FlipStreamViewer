@@ -33,7 +33,7 @@ class AnyType(str):
 
 any = AnyType("*")
 
-HEAD="""
+HEAD=r"""
 <head>
 <style type="text/css">
 html {
@@ -81,7 +81,7 @@ select {
 </head>
 """
 
-SCRIPT_PARAM="""
+SCRIPT_PARAM=r"""
 function getStateAsJson() {
     const autoUpdate = document.getElementById("autoUpdateCheckbox").checked;
     const presetTitle = document.getElementById("presetTitleInput").value;
@@ -167,7 +167,7 @@ function updateParam(reload=false) {
 }
 """
 
-SCRIPT_PRESET="""
+SCRIPT_PRESET=r"""
 function loadPreset(promptOnly=false) {
     var presetFile = document.getElementById("presetFileSelect");
     var presetTitle = document.getElementById("presetTitleInput")
@@ -239,7 +239,7 @@ function deletePreset() {
 }
 """
 
-SCRIPT_CKPT="""
+SCRIPT_CKPT=r"""
 function moveCheckpoint() {
     const moveCheckpointSelect = document.getElementById("moveCheckpointSelect");
     moveCheckpointSelect.style.display = "block";
@@ -268,7 +268,7 @@ function moveCheckpointFile() {
 }
 """
 
-SCRIPT_LORA="""
+SCRIPT_LORA=r"""
 function selectLoraFile() {
     const loraFolder = document.getElementById("loraFolderSelect").value;
     const loraFileSelect = document.getElementById("loraFileSelect");
@@ -281,9 +281,9 @@ function selectLoraFile() {
     const loraPreview = document.getElementById("loraPreview");
     
     if (loraFile) {
-        const re = new RegExp("<lora:" + loraName + ":[0-9.]+>[\\\\n]?", "g");
+        const re = new RegExp("[\\n]?<lora:" + loraName + ":[0-9.]+>", "g");
         if (loraInput.value.search(re) == -1) {
-            loraInput.value += "<lora:" + loraName + ":" + loraRate + ">\\n";
+            loraInput.value += "\n<lora:" + loraName + ":" + loraRate + ">";
         }
     }
     
@@ -340,11 +340,11 @@ function toggleLora() {
     const loraRate = document.getElementById("loraRate").value;
     const loraInput = document.getElementById("loraInput");
     if (loraFile) {
-        const re = new RegExp("<lora:" + loraName + ":[0-9.]+>[\\\\n]?", "g");
+        const re = new RegExp("[\\n]?<lora:" + loraName + ":[0-9.]+>", "g");
         if (loraInput.value.search(re) >= 0) {
             loraInput.value = loraInput.value.replace(re, "");
         } else {
-            loraInput.value += "<lora:" + loraName + ":" + loraRate + ">\\n";
+            loraInput.value += "\n<lora:" + loraName + ":" + loraRate + ">";
         }
     }
 }
@@ -377,14 +377,14 @@ function moveLoraFile() {
 }
 """
 
-SCRIPT_TAG="""
+SCRIPT_TAG=r"""
 function toggleTag() {
     const loraTag = document.getElementById("loraTagSelect").value;
     const loraInput = document.getElementById("loraInput");
     if (loraTag) {
-        const re = new RegExp("(^|,)\\s*" + loraTag + "\\s*(,|$)", "g");
+        const re = new RegExp("^\\s*" + loraTag + "\\s*(,\\s*|\n|$)|,\\s*" + loraTag + "\\s*(,|\n|$)", "g");
         if (loraInput.value.search(re) >= 0) {
-            loraInput.value = loraInput.value.replace(re, "");
+            loraInput.value = loraInput.value.replace(re, "$2")
         } else {
             if (loraInput.value) {
                 loraInput.value += ", " + loraTag;
@@ -400,7 +400,7 @@ function randomTag() {
     const loraInput = document.getElementById("loraInput");
     const loraTag = options[Math.floor(Math.random() * options.length)].value;
     if (loraTag) {
-        const re = new RegExp("(^|,)\\s*" + loraTag + "\\s*(,|$)", "g");
+        const re = new RegExp("^\\s*" + loraTag + "\\s*(,\\s*|$)|,\\s*" + loraTag + "\\s*(,|$)", "g");
         if (loraInput.value.search(re) < 0) {
             if (loraInput.value) {
                 loraInput.value += ", " + loraTag;
@@ -421,14 +421,18 @@ async function addWD14Tag() {
         body: JSON.stringify({wd14th: wd14th, wd14cth: wd14cth}),
         headers: {"Content-Type": "application/json"}
     }).then(response => response.json()).then(json => {
-        loraInput.value += "\\n" + json.tags + "\\n";
+        loraInput.value += "\n" + json.tags + "\n";
     }).catch(error => {
         alert(`Failed to fetch WD14 tags: ${error.stack}`);
     });
 }
+
+function clearLoraInput() {
+    document.getElementById("loraInput").value = "";
+}
 """
 
-SCRIPT_SEED="""
+SCRIPT_SEED=r"""
 function changeSeed(reload=false) {
     const seedInput = document.getElementById("seedInput");
     seedInput.value = Math.floor(Math.random() * 99999);
@@ -465,7 +469,7 @@ function toggleAutoUpdate() {
 toggleAutoUpdate();
 """
 
-SCRIPT_VIEW="""
+SCRIPT_VIEW=r"""
 var toggleViewFlag = true;
 function toggleView() {
     const leftPanel = document.getElementById("leftPanel");
@@ -496,7 +500,7 @@ function hideTimer() {
 hideTimer();
 """
 
-SCRIPT_CAPTURE="""
+SCRIPT_CAPTURE=r"""
 let capturedCanvas = document.createElement("canvas");
 async function capture() {
     try {
@@ -730,6 +734,8 @@ async def viewer(request):
             <input id="wd14cthRange" type="range" min="0" max="1" step="0.01" value="{state["wd14cth"]}" style="width: 50%;" oninput="wd14cthValue.innerText = this.value;" />
             <span id="wd14cthValue">{state["wd14cth"]}</span>cth
             <br>
+            <button id="clearLoraInputButton" onclick="clearLoraInput()">Clear Below</button>
+            <br>
             <textarea id="loraInput" placeholder="Enter lora" rows="15">{param["lora"]}</textarea>
             <br>
             <a id="loraLink" href="{state["loraLinkHref"]}" target="_blank">
@@ -813,7 +819,7 @@ async def get_wd14tag(request):
     if frame_buffer:
         with BytesIO(frame_buffer[0]) as buf:
             image = Image.open(buf)
-            tags = await wd14tagger.tag(image, "wd-v1-4-moat-tagger-v2.onnx", prm["wd14th"], prm["wd14cth"], exclude_tags, trailing_comma=True)
+            tags = await wd14tagger.tag(image, "wd-v1-4-moat-tagger-v2.onnx", prm["wd14th"], prm["wd14cth"], exclude_tags)
     return web.json_response({"tags": tags})
 
 
