@@ -1,12 +1,12 @@
 [project]
 name = "comfyui_flipstreamviewer"
 description = "ComfyUI_FlipStreamViewer is a tool that provides a viewer interface for flipping images with frame interpolation, allowing you to watch high-fidelity pseudo-videos without needing AnimateDiff."
-version = "1.0.0"
+version = "1.0.1"
 license = {file = "LICENSE"}
 
 [project.urls]
 Repository = "https://github.com/sakura1bgx/ComfyUI_FlipStreamViewer"
-# Used by Comfy Registry https://comfyregistry.org
+#  Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
 PublisherId = "sakura1bgx"
