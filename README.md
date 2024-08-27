@@ -60,6 +60,8 @@ You can adjust the following parameters on the viewer:
 - **Nsta**: Start step for the second KSampler; increasing this value will stabilize the output between frames.
 - **Nfrm**: Number of frames; each frame undergoes x8 interpolation in the sample workflow.
 - **Nspf**: Seconds per frame displayed in the viewer stream.
+- **Nwth**: Threshold for WD14Tagger; A smaller value increases the level of detail.
+- **Ncth**: Character thresould for WD14Tagger
 
 ## Inputs
 
