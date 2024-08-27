@@ -21,9 +21,11 @@ checkpoints_list = folder_paths.get_filename_list("checkpoints")
 
 allowed_ips = ["127.0.0.1"]
 param = {"mode": "", "prompt": "", "negativePrompt": "", "seed": 0, "keepSeed": 0, "steps": 13, "cfg": 4, "interval": 30, "sampler": "dpmpp_2m,sgm_uniform", "checkpoint": "", "lora": "", "startstep": 0, "frames": 1, "framewait": 1, "offsetX": 0, "offsetY": 0, "scale": 100}
-state = {"autoUpdate": False, "presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1.0", "checkpointFolder": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": ""}
+state = {"autoUpdate": False, "presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1.0", "checkpointFolder": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "wd14th": 0.35, "wd14cth": 0.85}
 frame_updating = False
 frame_buffer = []
+exclude_tags = ""
+
 
 class AnyType(str):
     def __ne__(self, __value: object) -> bool:
@@ -94,7 +96,9 @@ function getStateAsJson() {
     const loraRate = document.getElementById("loraRate").value;
     const loraLinkHref = document.getElementById("loraLink").href;
     const loraPreviewSrc = document.getElementById("loraPreview").src;
-    return { autoUpdate: autoUpdate, presetTitle: presetTitle, presetFolder: presetFolder, presetFile: presetFile, checkpointFolder: checkpointFolder, loraRate: loraRate, loraFolder: loraFolder, loraFile: loraFile, loraTagOptions: loraTagOptions, loraTag: loraTag, loraLinkHref: loraLinkHref, loraPreviewSrc: loraPreviewSrc, loraTagOptions: loraTagOptions };
+    const wd14th = parseFloat(document.getElementById("wd14thRange").value);
+    const wd14cth = parseFloat(document.getElementById("wd14cthRange").value);
+    return { autoUpdate: autoUpdate, presetTitle: presetTitle, presetFolder: presetFolder, presetFile: presetFile, checkpointFolder: checkpointFolder, loraRate: loraRate, loraFolder: loraFolder, loraFile: loraFile, loraTagOptions: loraTagOptions, loraTag: loraTag, loraLinkHref: loraLinkHref, loraPreviewSrc: loraPreviewSrc, loraTagOptions: loraTagOptions, wd14th: wd14th, wd14cth: wd14cth };
 }
 
 function getParamAsJson() {
@@ -409,9 +413,13 @@ function randomTag() {
 
 async function addWD14Tag() {
     const loraInput = document.getElementById("loraInput");
+    const wd14th = parseFloat(document.getElementById("wd14thRange").value);
+    const wd14cth = parseFloat(document.getElementById("wd14cthRange").value);
 
     fetch("/get_wd14tag", {
-        method: "GET",
+        method: "POST",
+        body: JSON.stringify({wd14th: wd14th, wd14cth: wd14cth}),
+        headers: {"Content-Type": "application/json"}
     }).then(response => response.json()).then(json => {
         loraInput.value += "\\n" + json.tags + "\\n";
     }).catch(error => {
@@ -536,12 +544,11 @@ function setFrame() {
     const dataURL = canvas.toDataURL("image/webp");
     fetch("/set_frame", {
         method: "POST",
-        body: JSON.stringify([getStateAsJson(), getParamAsJson(), dataURL]),
+        body: JSON.stringify([dataURL]),
         headers: { "Content-Type": "application/json" }
     }).then(response => {
         if (response.ok) {
-            alert("Set frame successfully!");
-            location.reload();
+            closeCapture();
         } else {
             alert("Failed to set frame.");
         }
@@ -717,6 +724,12 @@ async def viewer(request):
                 <option value="0.1" {"selected" if state["loraRate"] == "0.1" else ""}>0.1</option>
             </select>
             <br>
+            <input id="wd14thRange" type="range" min="0" max="1" step="0.01" value="{state["wd14th"]}" style="width: 50%;" oninput="wd14thValue.innerText = this.value;" />
+            <span id="wd14thValue">{state["wd14th"]}</span>wth
+            <br>
+            <input id="wd14cthRange" type="range" min="0" max="1" step="0.01" value="{state["wd14cth"]}" style="width: 50%;" oninput="wd14cthValue.innerText = this.value;" />
+            <span id="wd14cthValue">{state["wd14cth"]}</span>cth
+            <br>
             <textarea id="loraInput" placeholder="Enter lora" rows="15">{param["lora"]}</textarea>
             <br>
             <a id="loraLink" href="{state["loraLinkHref"]}" target="_blank">
@@ -790,16 +803,17 @@ async def get_lorainfo(request):
     return web.json_response(lorainfo)
 
 
-@server.PromptServer.instance.routes.get("/get_wd14tag")
+@server.PromptServer.instance.routes.post("/get_wd14tag")
 async def get_wd14tag(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
     
+    prm = await request.json()
     tags = []
     if frame_buffer:
         with BytesIO(frame_buffer[0]) as buf:
             image = Image.open(buf)
-            tags = await wd14tagger.tag(image, "wd-v1-4-moat-tagger-v2.onnx")
+            tags = await wd14tagger.tag(image, "wd-v1-4-moat-tagger-v2.onnx", prm["wd14th"], prm["wd14cth"], exclude_tags, trailing_comma=True)
     return web.json_response({"tags": tags})
 
 
@@ -809,9 +823,7 @@ async def set_frame(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
     
-    stt, prm, dataURL = await request.json()
-    state.update(stt)
-    param.update(prm)
+    dataURL, = await request.json()
     _, data = dataURL.split(",", 1)
     frame_buffer = [base64.b64decode(data)]
     return web.Response(status=200)
@@ -990,12 +1002,18 @@ class FlipStreamViewer:
         return {
             "required": {
                 "tensor": ("IMAGE",),
+                "allowip": ("STRING",),
+                "wd14exc": ("STRING",),
                 "idle": ("FLOAT", {"default": 1.0}),
             },
         }
 
     @classmethod
-    def IS_CHANGED(cls, idle, **kwargs):
+    def IS_CHANGED(cls, allowip, wd14exc, idle, **kwargs):
+        global allowed_ips
+        global exclude_tags
+        allowed_ips = ["127.0.0.1"] + list(map(str.strip, allowip.split(",")))
+        exclude_tags = wd14exc
         time.sleep(idle)
         return None
 
@@ -1004,7 +1022,7 @@ class FlipStreamViewer:
     FUNCTION = "update_frame"
     CATEGORY = "FlipStreamViewer"
 
-    def update_frame(self, tensor, idle):
+    def update_frame(self, tensor, idle, **kwargs):
         global frame_updating
         global frame_buffer
         buffer = []
