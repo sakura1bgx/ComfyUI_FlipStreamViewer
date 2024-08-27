@@ -380,16 +380,16 @@ function moveLoraFile() {
 SCRIPT_TAG="""
 function toggleTag() {
     const loraTag = document.getElementById("loraTagSelect").value;
-    const promptInput = document.getElementById("promptInput");
+    const loraInput = document.getElementById("loraInput");
     if (loraTag) {
-        const re = new RegExp(",\\\\s*" + loraTag, "g");
-        if (promptInput.value.search(re) >= 0) {
-            promptInput.value = promptInput.value.replace(re, "");
+        const re = new RegExp("(^|,)\\s*" + loraTag + "\\s*(,|$)", "g");
+        if (loraInput.value.search(re) >= 0) {
+            loraInput.value = loraInput.value.replace(re, "");
         } else {
-            if (promptInput.value) {
-                promptInput.value += ", " + loraTag;
+            if (loraInput.value) {
+                loraInput.value += ", " + loraTag;
             } else {
-                promptInput.value = loraTag;
+                loraInput.value = loraTag;
             }
         }
     }
@@ -397,15 +397,15 @@ function toggleTag() {
 
 function randomTag() {
     const options = document.getElementById("loraTagSelect").options;
-    const promptInput = document.getElementById("promptInput");
+    const loraInput = document.getElementById("loraInput");
     const loraTag = options[Math.floor(Math.random() * options.length)].value;
     if (loraTag) {
-        const re = new RegExp(",\\\\s*" + loraTag, "g");
-        if (promptInput.value.search(re) < 0) {
-            if (promptInput.value) {
-                promptInput.value += ", " + loraTag;
+        const re = new RegExp("(^|,)\\s*" + loraTag + "\\s*(,|$)", "g");
+        if (loraInput.value.search(re) < 0) {
+            if (loraInput.value) {
+                loraInput.value += ", " + loraTag;
             } else {
-                promptInput.value = loraTag;
+                loraInput.value = loraTag;
             }
         }
     }
@@ -935,7 +935,7 @@ class FlipStreamLoader:
     def IS_CHANGED(cls, **kwargs):
         return param["checkpoint"]
     
-    def loader(self, mode, default_ckpt, **kwargs):
+    def loader(self, mode, default_ckpt):
         global frame_updating
         frame_updating = True
         param["mode"] = mode
@@ -952,8 +952,8 @@ class FlipStreamUpdate:
     def INPUT_TYPES(s):
         return {"required": {}}
     
-    RETURN_TYPES = ("STRING","STRING","STRING","STRING","INT","INT","FLOAT","STRING",comfy.samplers.KSampler.SAMPLERS,comfy.samplers.KSampler.SCHEDULERS)
-    RETURN_NAMES = ("prompt","batchPrompt","appPrompt","negativePrompt","seed","steps","cfg","lora","sampler","scheduler")
+    RETURN_TYPES = ("STRING","STRING","STRING","STRING","INT","INT","FLOAT",comfy.samplers.KSampler.SAMPLERS,comfy.samplers.KSampler.SCHEDULERS)
+    RETURN_NAMES = ("prompt","batchPrompt","appPrompt","negativePrompt","seed","steps","cfg","sampler","scheduler")
     FUNCTION = "update"
     CATEGORY = "FlipStreamViewer"
 
@@ -961,17 +961,17 @@ class FlipStreamUpdate:
     def IS_CHANGED(cls, **kwargs):
         return (param["prompt"], param["negativePrompt"], param["seed"], param["steps"], param["cfg"], param["lora"], param["sampler"])
         
-    def update(self, *kwargs):
+    def update(self, **kwargs):
         global frame_updating
         frame_updating = True
 
         buf = param["prompt"].split("----\n")
-        prompt = buf[0]
+        prompt = buf[0].replace("{lora}", param["lora"])
         batchPrompt = buf[1] if len(buf) > 1 else "-\n-\n"
         appPrompt = buf[2] if len(buf) > 2 else ""
         batchPrompt = ",\n".join([f'"{n}":"{item.lstrip("-").strip()}"' for n, item in enumerate(batchPrompt.strip().split("\n"))])
         sampler, scheduler = param["sampler"].split(",")
-        return (prompt, batchPrompt, appPrompt, param["negativePrompt"], param["seed"], param["steps"], param["cfg"], param["lora"], sampler, scheduler)
+        return (prompt, batchPrompt, appPrompt, param["negativePrompt"], param["seed"], param["steps"], param["cfg"], sampler, scheduler)
 
 
 class FlipStreamOption:
@@ -1002,8 +1002,8 @@ class FlipStreamViewer:
         return {
             "required": {
                 "tensor": ("IMAGE",),
-                "allowip": ("STRING",),
-                "wd14exc": ("STRING",),
+                "allowip": ("STRING", {"default": ""}),
+                "wd14exc": ("STRING", {"default": ""}),
                 "idle": ("FLOAT", {"default": 1.0}),
             },
         }
@@ -1022,7 +1022,7 @@ class FlipStreamViewer:
     FUNCTION = "update_frame"
     CATEGORY = "FlipStreamViewer"
 
-    def update_frame(self, tensor, idle, **kwargs):
+    def update_frame(self, tensor, **kwargs):
         global frame_updating
         global frame_buffer
         buffer = []
