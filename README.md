@@ -100,18 +100,16 @@ Provide the following text inputs in the viewer:
 - **LoRA Preview**: At the bottom of the right pane; click to jump to the Civitai LoRA page if found.
 - **Auto-hide**: Click to hide controls and images or the viewer auto-hides after 5 minutes of inactivity.
 
-## Quality and Speed
+## For More Quality
 
 - Use more higher-quality checkpoint models.
-- To enhance stability between frames, use a deliberate prompt in the 'pre text' to establish a consistent background, such as `on desk, ideal background`. Additionally, using LoRA can also improve stability.
+- To enhance stability between frames, use a deliberate prompt in the 'pre text' to establish a consistent background, such as `on desk, ideal background`.
 - Select the appropriate words in 'frameN text' to achieve the desired motion. This can be reused in other prompts.
 - Since 0sta is more flexible, it's better to change the Nsta only after testing those first.
-- Recommended speed setting: `4stp 1cfg 0sta dpmpp_2m,sgm_uniform` with `<lora:TCD-SDXL:1>`. You can download the TCD LoRA from [Civitai](https://civitai.com/models/395638). Rename the file to `TCD-SDXL.safetensors`.
 
 ## Customizing Workflow
 
 You can customize the workflow for specific needs:
 
 - **FlipStreamLoader**: Use the 'mode' parameter to switch between sub-directories for checkpoints and LoRAs, useful for managing models like sd15, pony, etc.
-
 - **FlipStreamViewer**: The 'allowip' parameter allows you to set IP addresses that can access the viewer. The 'w14exc' parameter is used to set exclude_tags for the WD14 Tagger.
