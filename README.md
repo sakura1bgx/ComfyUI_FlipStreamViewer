@@ -32,10 +32,11 @@ Please install the following nodes via ComfyUI-Manager:
 
 ## Prompt Format
 
-Use the following format for input prompts. The 'pre text' and 'append text' sections apply to all frames. The separator `----` should consist of four hyphens, and each line of 'frameN text' applies to individual frames.
+Use the following format for input prompts. The 'pre text' and 'append text' sections apply to all frames. The separator `----` should consist of four hyphens, and each line of 'frameN text' applies to individual frames. The '{lora}' means it will be replaced by the LoRA input contents at the right pane.
 
 ```
 pre text,
+{lora}
 ----
 - frame1 text
 - frame2 text
@@ -45,9 +46,10 @@ append text
 
 ### Limitations
 
+- Please note that this tool is not designed with security measures against third-party attacks. Therefore, it should only be used for personal purposes within a secure network.
 - There is no save video function available; please customize your workflow as needed.
 - Excessively long text may cause exceptions.
-- The keywords `BREAK`, `AND`, and `<lora:...>` cannot be used in the prompt.
+- The keywords `BREAK`, `AND` cannot be used in the prompt.
 
 ## Parameters
 
@@ -60,8 +62,6 @@ You can adjust the following parameters on the viewer:
 - **Nsta**: Start step for the second KSampler; increasing this value will stabilize the output between frames.
 - **Nfrm**: Number of frames; each frame undergoes x8 interpolation in the sample workflow.
 - **Nspf**: Seconds per frame displayed in the viewer stream.
-- **Nwth**: Threshold for WD14Tagger; A smaller value increases the level of detail.
-- **Ncth**: Character thresould for WD14Tagger
 
 ## Inputs
 
@@ -89,8 +89,8 @@ Provide the following text inputs in the viewer:
 
 - **T**: Toggle LoRA enable/disable.
 - **M**: Move the LoRA file.
-- **T**: Toggle tag enable/disable at the Prompt Input.
-- **R**: Switch to random tags at the Prompt Input.
+- **T**: Toggle tag enable/disable at the LoRA Input.
+- **R**: Switch to random tags at the LoRA Input.
 - **U**: Same as Update.
 - **W**: Apply WD14Tagger to the first frame; outputs tags to LoRA input.
 - **C**: Capture an image from another browser tab or desktop and set it as the first frame; useful with W.
@@ -113,3 +113,5 @@ Provide the following text inputs in the viewer:
 You can customize the workflow for specific needs:
 
 - **FlipStreamLoader**: Use the 'mode' parameter to switch between sub-directories for checkpoints and LoRAs, useful for managing models like sd15, pony, etc.
+
+- **FlipStreamViewer**: The 'allowip' parameter allows you to set IP addresses that can access the viewer. The 'w14exc' parameter is used to set exclude_tags for the WD14 Tagger.
