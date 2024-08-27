@@ -157,7 +157,7 @@
       },
       "widgets_values": [
         "disable",
-        231567818888929,
+        43462333096243,
         "randomize",
         9,
         7,
@@ -463,7 +463,7 @@
       },
       "widgets_values": [
         "enable",
-        745303733003524,
+        333457859821328,
         "randomize",
         31,
         7,
@@ -573,7 +573,7 @@
       },
       "flags": {},
       "order": 16,
-      "mode": 0,
+      "mode": 4,
       "inputs": [
         {
           "name": "frames",
@@ -954,34 +954,6 @@
       ]
     },
     {
-      "id": 347,
-      "type": "FlipStreamViewer",
-      "pos": [
-        167.0384471154315,
-        -629.6951425148437
-      ],
-      "size": {
-        "0": 210,
-        "1": 58
-      },
-      "flags": {},
-      "order": 17,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "tensor",
-          "type": "IMAGE",
-          "link": 1081
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "FlipStreamViewer"
-      },
-      "widgets_values": [
-        1
-      ]
-    },
-    {
       "id": 348,
       "type": "BatchPromptSchedule",
       "pos": [
@@ -1106,6 +1078,36 @@
         0,
         0,
         0
+      ]
+    },
+    {
+      "id": 347,
+      "type": "FlipStreamViewer",
+      "pos": [
+        167.0384471154315,
+        -629.6951425148437
+      ],
+      "size": {
+        "0": 210,
+        "1": 106
+      },
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tensor",
+          "type": "IMAGE",
+          "link": 1081
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "FlipStreamViewer"
+      },
+      "widgets_values": [
+        "",
+        "",
+        1
       ]
     }
   ],
@@ -1481,7 +1483,8 @@
         592
       ],
       "color": "#3f789e",
-      "font_size": 24
+      "font_size": 24,
+      "locked": false
     },
     {
       "title": "Base latent",
@@ -1492,7 +1495,8 @@
         543
       ],
       "color": "#3f789e",
-      "font_size": 24
+      "font_size": 24,
+      "locked": false
     },
     {
       "title": "LoRA and CLIP",
@@ -1503,7 +1507,8 @@
         369
       ],
       "color": "#3f789e",
-      "font_size": 24
+      "font_size": 24,
+      "locked": false
     },
     {
       "title": "Frames",
@@ -1514,7 +1519,8 @@
         579
       ],
       "color": "#3f789e",
-      "font_size": 24
+      "font_size": 24,
+      "locked": false
     },
     {
       "title": "Interpolation and Output",
@@ -1525,16 +1531,17 @@
         511
       ],
       "color": "#3f789e",
-      "font_size": 24
+      "font_size": 24,
+      "locked": false
     }
   ],
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.8979276645799553,
+      "scale": 1,
       "offset": [
-        1491.2821079458877,
-        949.6256302407462
+        603.75,
+        998.75
       ]
     },
     "groupNodes": {}
