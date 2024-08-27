@@ -24,11 +24,11 @@ Please install the following nodes via ComfyUI-Manager:
 
 `http://localhost:8188/viewer`
 
-3. To respond to viewer input:
+4. To respond to viewer input:
 - Check 'Extra options', 'Auto Queue', and 'instant' on the ComfyUI control panel.
 - Then click the 'Queue Prompt' button.
 
-4. The 'preset' folder may be created in the current directory for saving and loading preset files. Sample presets can be found in the `presetsamples` folder.
+5. The 'preset' folder may be created in the current directory for saving and loading preset files. Sample presets can be found in the `presetsamples` folder.
 
 ## Prompt Format
 
