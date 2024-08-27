@@ -400,7 +400,7 @@ function randomTag() {
     const loraInput = document.getElementById("loraInput");
     const loraTag = options[Math.floor(Math.random() * options.length)].value;
     if (loraTag) {
-        const re = new RegExp("^\\s*" + loraTag + "\\s*(,\\s*|$)|,\\s*" + loraTag + "\\s*(,|$)", "g");
+        const re = new RegExp("^\\s*" + loraTag + "\\s*(,\\s*|\n|$)|,\\s*" + loraTag + "\\s*(,|\n|$)", "g");
         if (loraInput.value.search(re) < 0) {
             if (loraInput.value) {
                 loraInput.value += ", " + loraTag;
