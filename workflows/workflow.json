@@ -1,6 +1,6 @@
 {
-  "last_node_id": 353,
-  "last_link_id": 1115,
+  "last_node_id": 355,
+  "last_link_id": 1136,
   "nodes": [
     {
       "id": 88,
@@ -25,7 +25,7 @@
         {
           "name": "amount",
           "type": "INT",
-          "link": 1069,
+          "link": 1122,
           "widget": {
             "name": "amount"
           }
@@ -87,7 +87,7 @@
         {
           "name": "noise_seed",
           "type": "INT",
-          "link": 1100,
+          "link": 1128,
           "widget": {
             "name": "noise_seed"
           }
@@ -95,7 +95,7 @@
         {
           "name": "steps",
           "type": "INT",
-          "link": 1102,
+          "link": 1130,
           "widget": {
             "name": "steps"
           }
@@ -103,7 +103,7 @@
         {
           "name": "cfg",
           "type": "FLOAT",
-          "link": 1104,
+          "link": 1132,
           "widget": {
             "name": "cfg"
           }
@@ -111,7 +111,7 @@
         {
           "name": "start_at_step",
           "type": "INT",
-          "link": 1065,
+          "link": 1121,
           "widget": {
             "name": "start_at_step"
           }
@@ -119,7 +119,7 @@
         {
           "name": "add_noise",
           "type": "COMBO",
-          "link": 1073,
+          "link": 1126,
           "widget": {
             "name": "add_noise"
           }
@@ -127,7 +127,7 @@
         {
           "name": "sampler_name",
           "type": "COMBO",
-          "link": 1106,
+          "link": 1134,
           "widget": {
             "name": "sampler_name"
           }
@@ -135,7 +135,7 @@
         {
           "name": "scheduler",
           "type": "COMBO",
-          "link": 1108,
+          "link": 1136,
           "widget": {
             "name": "scheduler"
           }
@@ -157,7 +157,7 @@
       },
       "widgets_values": [
         "disable",
-        1033679295024122,
+        642553900761503,
         "randomize",
         9,
         7,
@@ -232,7 +232,7 @@
         {
           "name": "text",
           "type": "STRING",
-          "link": 1098,
+          "link": 1119,
           "widget": {
             "name": "text"
           }
@@ -330,7 +330,7 @@
         {
           "name": "noise_seed",
           "type": "INT",
-          "link": 1099,
+          "link": 1127,
           "widget": {
             "name": "noise_seed"
           }
@@ -338,7 +338,7 @@
         {
           "name": "steps",
           "type": "INT",
-          "link": 1101,
+          "link": 1129,
           "widget": {
             "name": "steps"
           }
@@ -346,7 +346,7 @@
         {
           "name": "cfg",
           "type": "FLOAT",
-          "link": 1103,
+          "link": 1131,
           "widget": {
             "name": "cfg"
           }
@@ -354,7 +354,7 @@
         {
           "name": "end_at_step",
           "type": "INT",
-          "link": 1063,
+          "link": 1120,
           "widget": {
             "name": "end_at_step"
           }
@@ -362,7 +362,7 @@
         {
           "name": "sampler_name",
           "type": "COMBO",
-          "link": 1105,
+          "link": 1133,
           "widget": {
             "name": "sampler_name"
           }
@@ -370,7 +370,7 @@
         {
           "name": "scheduler",
           "type": "COMBO",
-          "link": 1107,
+          "link": 1135,
           "widget": {
             "name": "scheduler"
           }
@@ -392,7 +392,7 @@
       },
       "widgets_values": [
         "enable",
-        675236983181899,
+        1033721442676069,
         "randomize",
         31,
         7,
@@ -502,7 +502,7 @@
       },
       "flags": {},
       "order": 16,
-      "mode": 4,
+      "mode": 0,
       "inputs": [
         {
           "name": "frames",
@@ -600,13 +600,13 @@
         "1": 78
       },
       "flags": {},
-      "order": 5,
+      "order": 6,
       "mode": 0,
       "inputs": [
         {
           "name": "a",
           "type": "INT",
-          "link": 1071
+          "link": 1123
         },
         {
           "name": "b",
@@ -716,155 +716,6 @@
       ]
     },
     {
-      "id": 343,
-      "type": "FlipStreamOption",
-      "pos": [
-        -1468,
-        -464
-      ],
-      "size": {
-        "0": 202.96011352539062,
-        "1": 75.58403778076172
-      },
-      "flags": {},
-      "order": 3,
-      "mode": 0,
-      "outputs": [
-        {
-          "name": "startstep",
-          "type": "INT",
-          "links": [
-            1063,
-            1065
-          ],
-          "slot_index": 0,
-          "shape": 3
-        },
-        {
-          "name": "frames",
-          "type": "INT",
-          "links": [
-            1069,
-            1071,
-            1091,
-            1092
-          ],
-          "slot_index": 1,
-          "shape": 3
-        },
-        {
-          "name": "start_noise",
-          "type": "COMBO",
-          "links": [
-            1073
-          ],
-          "slot_index": 2,
-          "shape": 3
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "FlipStreamOption"
-      }
-    },
-    {
-      "id": 351,
-      "type": "FlipStreamUpdate",
-      "pos": [
-        -1465,
-        -694
-      ],
-      "size": {
-        "0": 203,
-        "1": 186
-      },
-      "flags": {},
-      "order": 4,
-      "mode": 0,
-      "outputs": [
-        {
-          "name": "prompt",
-          "type": "STRING",
-          "links": [
-            1112
-          ],
-          "slot_index": 0,
-          "shape": 3
-        },
-        {
-          "name": "batchPrompt",
-          "type": "STRING",
-          "links": [
-            1096
-          ],
-          "shape": 3
-        },
-        {
-          "name": "appPrompt",
-          "type": "STRING",
-          "links": [
-            1097
-          ],
-          "shape": 3
-        },
-        {
-          "name": "negativePrompt",
-          "type": "STRING",
-          "links": [
-            1098
-          ],
-          "shape": 3
-        },
-        {
-          "name": "seed",
-          "type": "INT",
-          "links": [
-            1099,
-            1100
-          ],
-          "shape": 3
-        },
-        {
-          "name": "steps",
-          "type": "INT",
-          "links": [
-            1101,
-            1102
-          ],
-          "shape": 3
-        },
-        {
-          "name": "cfg",
-          "type": "FLOAT",
-          "links": [
-            1103,
-            1104
-          ],
-          "shape": 3
-        },
-        {
-          "name": "sampler",
-          "type": "COMBO",
-          "links": [
-            1105,
-            1106
-          ],
-          "shape": 3
-        },
-        {
-          "name": "scheduler",
-          "type": "COMBO",
-          "links": [
-            1107,
-            1108
-          ],
-          "shape": 3
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "FlipStreamUpdate"
-      }
-    },
-    {
       "id": 348,
       "type": "BatchPromptSchedule",
       "pos": [
@@ -895,7 +746,7 @@
         {
           "name": "app_text",
           "type": "STRING",
-          "link": 1097,
+          "link": 1118,
           "widget": {
             "name": "app_text"
           }
@@ -935,7 +786,7 @@
         {
           "name": "text",
           "type": "STRING",
-          "link": 1096,
+          "link": 1117,
           "widget": {
             "name": "text"
           }
@@ -943,7 +794,7 @@
         {
           "name": "max_frames",
           "type": "INT",
-          "link": 1091,
+          "link": 1124,
           "widget": {
             "name": "max_frames"
           }
@@ -951,7 +802,7 @@
         {
           "name": "end_frame",
           "type": "INT",
-          "link": 1092,
+          "link": 1125,
           "widget": {
             "name": "end_frame"
           }
@@ -1033,7 +884,7 @@
         "1": 74
       },
       "flags": {},
-      "order": 6,
+      "order": 5,
       "mode": 0,
       "inputs": [
         {
@@ -1049,7 +900,7 @@
         {
           "name": "text",
           "type": "STRING",
-          "link": 1112,
+          "link": 1116,
           "widget": {
             "name": "text"
           }
@@ -1094,6 +945,156 @@
       "widgets_values": [
         ""
       ]
+    },
+    {
+      "id": 354,
+      "type": "FlipStreamUpdate",
+      "pos": [
+        -1465,
+        -694
+      ],
+      "size": [
+        204.40107421874927,
+        86
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            1116
+          ],
+          "shape": 3
+        },
+        {
+          "name": "batchPrompt",
+          "type": "STRING",
+          "links": [
+            1117
+          ],
+          "shape": 3
+        },
+        {
+          "name": "appPrompt",
+          "type": "STRING",
+          "links": [
+            1118
+          ],
+          "shape": 3
+        },
+        {
+          "name": "negativePrompt",
+          "type": "STRING",
+          "links": [
+            1119
+          ],
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "FlipStreamUpdate"
+      }
+    },
+    {
+      "id": 355,
+      "type": "FlipStreamOption",
+      "pos": [
+        -1468,
+        -563
+      ],
+      "size": {
+        "0": 202.96011352539062,
+        "1": 166
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "startstep",
+          "type": "INT",
+          "links": [
+            1120,
+            1121
+          ],
+          "shape": 3
+        },
+        {
+          "name": "frames",
+          "type": "INT",
+          "links": [
+            1122,
+            1123,
+            1124,
+            1125
+          ],
+          "shape": 3
+        },
+        {
+          "name": "start_noise",
+          "type": "COMBO",
+          "links": [
+            1126
+          ],
+          "shape": 3
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": [
+            1127,
+            1128
+          ],
+          "shape": 3,
+          "slot_index": 3
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "links": [
+            1129,
+            1130
+          ],
+          "shape": 3,
+          "slot_index": 4
+        },
+        {
+          "name": "cfg",
+          "type": "FLOAT",
+          "links": [
+            1131,
+            1132
+          ],
+          "shape": 3,
+          "slot_index": 5
+        },
+        {
+          "name": "sampler",
+          "type": "COMBO",
+          "links": [
+            1133,
+            1134
+          ],
+          "shape": 3,
+          "slot_index": 6
+        },
+        {
+          "name": "scheduler",
+          "type": "COMBO",
+          "links": [
+            1135,
+            1136
+          ],
+          "shape": 3,
+          "slot_index": 7
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "FlipStreamOption"
+      }
     }
   ],
   "links": [
@@ -1226,46 +1227,6 @@
       "*"
     ],
     [
-      1063,
-      343,
-      0,
-      249,
-      7,
-      "INT"
-    ],
-    [
-      1065,
-      343,
-      0,
-      149,
-      7,
-      "INT"
-    ],
-    [
-      1069,
-      343,
-      1,
-      88,
-      1,
-      "INT"
-    ],
-    [
-      1071,
-      343,
-      1,
-      336,
-      0,
-      "INT"
-    ],
-    [
-      1073,
-      343,
-      2,
-      149,
-      8,
-      "COMBO"
-    ],
-    [
       1075,
       345,
       0,
@@ -1298,22 +1259,6 @@
       "CLIP"
     ],
     [
-      1091,
-      343,
-      1,
-      348,
-      8,
-      "INT"
-    ],
-    [
-      1092,
-      343,
-      1,
-      348,
-      9,
-      "INT"
-    ],
-    [
       1093,
       348,
       0,
@@ -1322,123 +1267,11 @@
       "CONDITIONING"
     ],
     [
-      1096,
-      351,
-      1,
-      348,
-      7,
-      "STRING"
-    ],
-    [
-      1097,
-      351,
-      2,
-      348,
-      2,
-      "STRING"
-    ],
-    [
-      1098,
-      351,
-      3,
-      154,
-      1,
-      "STRING"
-    ],
-    [
-      1099,
-      351,
-      4,
-      249,
-      4,
-      "INT"
-    ],
-    [
-      1100,
-      351,
-      4,
-      149,
-      4,
-      "INT"
-    ],
-    [
-      1101,
-      351,
-      5,
-      249,
-      5,
-      "INT"
-    ],
-    [
-      1102,
-      351,
-      5,
-      149,
-      5,
-      "INT"
-    ],
-    [
-      1103,
-      351,
-      6,
-      249,
-      6,
-      "FLOAT"
-    ],
-    [
-      1104,
-      351,
-      6,
-      149,
-      6,
-      "FLOAT"
-    ],
-    [
-      1105,
-      351,
-      7,
-      249,
-      8,
-      "COMBO"
-    ],
-    [
-      1106,
-      351,
-      7,
-      149,
-      9,
-      "COMBO"
-    ],
-    [
-      1107,
-      351,
-      8,
-      249,
-      9,
-      "COMBO"
-    ],
-    [
-      1108,
-      351,
-      8,
-      149,
-      10,
-      "COMBO"
-    ],
-    [
       1110,
       176,
       2,
       309,
       1,
-      "STRING"
-    ],
-    [
-      1112,
-      351,
-      0,
-      176,
-      2,
       "STRING"
     ],
     [
@@ -1456,6 +1289,174 @@
       352,
       0,
       "IMAGE"
+    ],
+    [
+      1116,
+      354,
+      0,
+      176,
+      2,
+      "STRING"
+    ],
+    [
+      1117,
+      354,
+      1,
+      348,
+      7,
+      "STRING"
+    ],
+    [
+      1118,
+      354,
+      2,
+      348,
+      2,
+      "STRING"
+    ],
+    [
+      1119,
+      354,
+      3,
+      154,
+      1,
+      "STRING"
+    ],
+    [
+      1120,
+      355,
+      0,
+      249,
+      7,
+      "INT"
+    ],
+    [
+      1121,
+      355,
+      0,
+      149,
+      7,
+      "INT"
+    ],
+    [
+      1122,
+      355,
+      1,
+      88,
+      1,
+      "INT"
+    ],
+    [
+      1123,
+      355,
+      1,
+      336,
+      0,
+      "INT"
+    ],
+    [
+      1124,
+      355,
+      1,
+      348,
+      8,
+      "INT"
+    ],
+    [
+      1125,
+      355,
+      1,
+      348,
+      9,
+      "INT"
+    ],
+    [
+      1126,
+      355,
+      2,
+      149,
+      8,
+      "COMBO"
+    ],
+    [
+      1127,
+      355,
+      3,
+      249,
+      4,
+      "INT"
+    ],
+    [
+      1128,
+      355,
+      3,
+      149,
+      4,
+      "INT"
+    ],
+    [
+      1129,
+      355,
+      4,
+      249,
+      5,
+      "INT"
+    ],
+    [
+      1130,
+      355,
+      4,
+      149,
+      5,
+      "INT"
+    ],
+    [
+      1131,
+      355,
+      5,
+      249,
+      6,
+      "FLOAT"
+    ],
+    [
+      1132,
+      355,
+      5,
+      149,
+      6,
+      "FLOAT"
+    ],
+    [
+      1133,
+      355,
+      6,
+      249,
+      8,
+      "COMBO"
+    ],
+    [
+      1134,
+      355,
+      6,
+      149,
+      9,
+      "COMBO"
+    ],
+    [
+      1135,
+      355,
+      7,
+      249,
+      9,
+      "COMBO"
+    ],
+    [
+      1136,
+      355,
+      7,
+      149,
+      10,
+      "COMBO"
     ]
   ],
   "groups": [
@@ -1464,8 +1465,8 @@
       "bounding": [
         -1483,
         -935,
-        234,
-        562
+        233,
+        552
       ],
       "color": "#3f789e",
       "font_size": 24,
@@ -1523,11 +1524,11 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.7513148009015777,
-      "offset": {
-        "0": 1492.60546875,
-        "1": 988.8031616210938
-      }
+      "scale": 0.9090909090909095,
+      "offset": [
+        863.4989257812524,
+        920.4082275390626
+      ]
     },
     "groupNodes": {}
   },
