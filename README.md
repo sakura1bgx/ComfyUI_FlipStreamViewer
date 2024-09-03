@@ -62,6 +62,8 @@ You can adjust the following parameters on the viewer:
 - **Nsta**: Start step for the second KSampler; increasing this value will stabilize the output between frames.
 - **Nfrm**: Number of frames; each frame undergoes x8 interpolation in the sample workflow.
 - **Nspf**: Seconds per frame displayed in the viewer stream.
+- **Nwth**: Threshould for WD14Tagger.
+- **Ncth**: Character threshould for WD14Tagger.
 
 ## Inputs
 
@@ -80,13 +82,14 @@ Provide the following text inputs in the viewer:
 - **K**: Keep the seed to search for another good seed.
 - **B**: Go back to the previous seed.
 - **M**: Move the checkpoint file.
-- **L**: Load a preset.
-- **P**: Load a preset prompt only.
-- **S**: Save the current preset.
-- **D**: Delete a preset.
 
 **Right Pane Buttons:**
 
+- **L**: Load a preset.
+- **R**: Select random preset.
+- **P**: Load a preset prompt only.
+- **M**: Move the Preset file.
+- **S**: Save the current preset.
 - **T**: Toggle LoRA enable/disable.
 - **M**: Move the LoRA file.
 - **T**: Toggle tag enable/disable at the LoRA Input.
@@ -94,6 +97,7 @@ Provide the following text inputs in the viewer:
 - **U**: Same as Update.
 - **W**: Apply WD14Tagger to the first frame; outputs tags to LoRA input.
 - **C**: Capture an image from another browser tab or desktop and set it as the first frame; useful with W.
+- **Clear Below**: Clear the LoRA input.
 
 ## Additional Features
 
