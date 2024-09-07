@@ -68,7 +68,7 @@ button {
     font-size: 100%;
     border-radius: 4px;
     padding: 0px;
-    min-width: 1.2em;
+    min-width: 2em;
 }
 
 select {
@@ -106,6 +106,7 @@ div.row {
 #checkpointFolderSelect,
 #moveCheckpointSelect,
 #presetFolderSelect,
+#presetFileSelect,
 #movePresetSelect,
 #loraFolderSelect,
 #moveLoraSelect {
@@ -121,14 +122,10 @@ div.row {
 #seedInput,
 #keepSeedInput,
 #checkpointFileSelect,
-#presetFileSelect,
+#presetTitleInput,
 #loraFileSelect,
 #loraTagSelect {
-    width: 4em;
-}
-
-#presetTitleInput {
-    width: 6em;
+    width: 70%;
 }
 
 #stepsRange,
@@ -687,16 +684,10 @@ async def viewer(request):
             <textarea id="promptInput" placeholder="Enter prompt" rows="15">{param["prompt"]}</textarea>
             <textarea id="negativePromptInput" placeholder="Enter negativePrompt" rows="2">{param["negativePrompt"]}</textarea>
             <div class="row">
-                <button id="updateButton" onclick="updateParam(true)">Update</button>
-                <button id="changeSeedButton" onclick="changeSeed(true)">Change</button>
-            </div>
-            <div class="row">
                 Seed: <input id="seedInput" type="number" placeholder="Enter seed" value="{param["seed"]}" />
             </div>
             <div class="row">
-                <button id="keepSeedButton" onclick="keepSeed()">K</button>
-                <button id="backSeedButton" onclick="backSeed()">B</button>
-                <input id="keepSeedInput" type="number" placeholder="keepSeed" value="{param["keepSeed"]}" />
+                Keep: <input id="keepSeedInput" type="number" placeholder="keepSeed" value="{param["keepSeed"]}" />
             </div>
             <div class="row">
                 Iv:<select id="intervalSelect" onchange="updateParam()">
@@ -709,11 +700,17 @@ async def viewer(request):
                 <input id="autoUpdateCheckbox" type="checkbox" onchange="toggleAutoUpdate()"{" checked" if state["autoUpdate"] else ""}>Auto</input>
             </div>
             <div class="row">
-                <input id="stepsRange" type="range" min="1" max="25" step="1" value="{param["steps"]}" oninput="stepsValue.innerText = this.value;" />
+                <button id="updateButton" onclick="updateParam(true)">U</button>
+                <button id="changeSeedButton" onclick="changeSeed(true)">R</button>
+                <button id="keepSeedButton" onclick="keepSeed()">K</button>
+                <button id="backSeedButton" onclick="backSeed()">B</button>
+            </div>
+            <div class="row">
+                <input id="stepsRange" type="range" min="1" max="50" step="1" value="{param["steps"]}" oninput="stepsValue.innerText = this.value;" />
                 <span id="stepsValue">{param["steps"]}</span>stp
             </div>
             <div class="row">
-                <input id="cfgRange" type="range" min="1.0" max="7.0" step="0.1" value="{param["cfg"]}" oninput="cfgValue.innerText = this.value;" />
+                <input id="cfgRange" type="range" min="1.0" max="15.0" step="0.1" value="{param["cfg"]}" oninput="cfgValue.innerText = this.value;" />
                 <span id="cfgValue">{param["cfg"]}</span>cfg
             </div>
             <div class="row">
@@ -754,28 +751,6 @@ async def viewer(request):
             <button id="toggleView" onclick="toggleView()"></button>
         </div>
         <div id="rightPanel">
-            <select id="presetFolderSelect" onchange="updateParam(true)">
-                <option value="">preset folder</option>
-                {"".join([f'<option value="{dir.name}"{" selected" if state["presetFolder"] == dir.name else ""}>{dir.name}</option>' for dir in Path("preset").glob("*/")])}
-            </select>
-            <div class="row">
-                <select id="presetFileSelect">
-                    <option value="" disabled selected>preset</option>
-                    {"".join([f'<option value="{file.name}"{" selected" if state["presetFile"] == file.name else ""}>{file.stem}</option>' for file in Path("preset", state["presetFolder"]).glob("*.json")])}
-                </select>
-                <button id="loadPresetButton" onclick="loadPreset()">L</button>
-                <button id="randomPresetButton" onclick="randomPreset()">R</button>
-                <button id="loadPresetLoraPromptButton" onclick="loadPreset(true)">P</button>
-                <button id="movePresetButton" onclick="movePreset()">M</button>
-            </div>
-            <select id="movePresetSelect" onchange="movePresetFile()">
-                <option value="default" disabled selected>move to</option>
-                {"".join([f'<option value="{dir.name}">{dir.name}</option>' for dir in Path("preset").glob("*/")])}
-            </select>
-            <div class="row">
-                <input id="presetTitleInput" placeholder="preset title" value="{state["presetTitle"]}" />
-                <button id="savePresetButton" onclick="savePreset()">S</button>
-            </div>
             <select id="loraFolderSelect" onchange="updateParam(true)">
                 <option value="">lora folder</option>
                 {"".join([f'<option value="{dir.name}"{" selected" if state["loraFolder"] == dir.name else ""}>{dir.name}</option>' for dir in Path("ComfyUI/models/loras", param["mode"]).glob("*/")])}
@@ -800,23 +775,18 @@ async def viewer(request):
                 <button id="toggleTagButton" onclick="toggleTag()">T</button>
                 <button id="randomTagButton" onclick="randomTag()">R</button>
             </div>
-            <div class="row">
-                <button id="updateButton2" onclick="updateParam(true)">U</button>
-                <button id="wd14Button" onclick="addWD14Tag()">W</button>
-                <button id="captureButton" onclick="capture()">C</button>
-                <select id="loraRate">
-                    <option value="1" {"selected" if state["loraRate"] == "1" else ""}>1</option>
-                    <option value="0.9" {"selected" if state["loraRate"] == "0.9" else ""}>0.9</option>
-                    <option value="0.8" {"selected" if state["loraRate"] == "0.8" else ""}>0.8</option>
-                    <option value="0.7" {"selected" if state["loraRate"] == "0.7" else ""}>0.7</option>
-                    <option value="0.6" {"selected" if state["loraRate"] == "0.6" else ""}>0.6</option>
-                    <option value="0.5" {"selected" if state["loraRate"] == "0.5" else ""}>0.5</option>
-                    <option value="0.4" {"selected" if state["loraRate"] == "0.4" else ""}>0.4</option>
-                    <option value="0.3" {"selected" if state["loraRate"] == "0.3" else ""}>0.3</option>
-                    <option value="0.2" {"selected" if state["loraRate"] == "0.2" else ""}>0.2</option>
-                    <option value="0.1" {"selected" if state["loraRate"] == "0.1" else ""}>0.1</option>
-                </select>
-            </div>
+            Rate: <select id="loraRate">
+                <option value="1" {"selected" if state["loraRate"] == "1" else ""}>1</option>
+                <option value="0.9" {"selected" if state["loraRate"] == "0.9" else ""}>0.9</option>
+                <option value="0.8" {"selected" if state["loraRate"] == "0.8" else ""}>0.8</option>
+                <option value="0.7" {"selected" if state["loraRate"] == "0.7" else ""}>0.7</option>
+                <option value="0.6" {"selected" if state["loraRate"] == "0.6" else ""}>0.6</option>
+                <option value="0.5" {"selected" if state["loraRate"] == "0.5" else ""}>0.5</option>
+                <option value="0.4" {"selected" if state["loraRate"] == "0.4" else ""}>0.4</option>
+                <option value="0.3" {"selected" if state["loraRate"] == "0.3" else ""}>0.3</option>
+                <option value="0.2" {"selected" if state["loraRate"] == "0.2" else ""}>0.2</option>
+                <option value="0.1" {"selected" if state["loraRate"] == "0.1" else ""}>0.1</option>
+            </select>
             <div class="row">
                 <input id="wd14thRange" type="range" min="0" max="1" step="0.01" value="{state["wd14th"]}" oninput="wd14thValue.innerText = this.value;" />
                 <span id="wd14thValue">{state["wd14th"]}</span>wth
@@ -825,8 +795,33 @@ async def viewer(request):
                 <input id="wd14cthRange" type="range" min="0" max="1" step="0.01" value="{state["wd14cth"]}" oninput="wd14cthValue.innerText = this.value;" />
                 <span id="wd14cthValue">{state["wd14cth"]}</span>cth
             </div>
+            <select id="presetFolderSelect" onchange="updateParam(true)">
+                <option value="">preset folder</option>
+                {"".join([f'<option value="{dir.name}"{" selected" if state["presetFolder"] == dir.name else ""}>{dir.name}</option>' for dir in Path("preset").glob("*/")])}
+            </select>
+            <select id="presetFileSelect">
+                <option value="" disabled selected>preset</option>
+                {"".join([f'<option value="{file.name}"{" selected" if state["presetFile"] == file.name else ""}>{file.stem}</option>' for file in Path("preset", state["presetFolder"]).glob("*.json")])}
+            </select>
             <div class="row">
-                <button id="clearLoraInputButton" onclick="clearLoraInput()">Clear Below</button>
+                <button id="randomPresetButton" onclick="randomPreset()">R</button>
+                <button id="loadPresetLoraPromptButton" onclick="loadPreset(true)">P</button>
+                <button id="loadPresetButton" onclick="loadPreset()">L</button>
+                <button id="movePresetButton" onclick="movePreset()">M</button>
+            </div>
+            <select id="movePresetSelect" onchange="movePresetFile()">
+                <option value="default" disabled selected>move to</option>
+                {"".join([f'<option value="{dir.name}">{dir.name}</option>' for dir in Path("preset").glob("*/")])}
+            </select>
+            <div class="row">
+                <input id="presetTitleInput" placeholder="preset title" value="{state["presetTitle"]}" />
+                <button id="savePresetButton" onclick="savePreset()">Save</button>
+            </div>
+            <div class="row">
+                <button id="captureButton" onclick="capture()">C</button>
+                <button id="wd14Button" onclick="addWD14Tag()">W</button>
+                <button id="updateButton2" onclick="updateParam(true)">U</button>
+                <button id="clearLoraInputButton" onclick="clearLoraInput()">Clear</button>
             </div>
             <textarea id="loraInput" placeholder="Enter lora" rows="15">{param["lora"]}</textarea>
             <div class="row">
@@ -1050,6 +1045,29 @@ class FlipStreamLoader:
         return out[:3]
 
 
+class FlipStreamSetMode:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "mode": ("STRING", {"default": param["mode"]}),
+                "model": ("MODEL",),
+            }
+        }
+
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "setmode"
+    CATEGORY = "FlipStreamViewer"
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return None
+
+    def setmode(self, mode, model):
+        param["mode"] = mode
+        return (model,)
+
+
 class FlipStreamUpdate:
     @classmethod
     def INPUT_TYPES(s):
@@ -1099,6 +1117,27 @@ class FlipStreamOption:
         return (param["startstep"], param["frames"], start_noise, param["seed"], param["steps"], param["cfg"], sampler, scheduler)
     
 
+class FlipStreamSwitchVFI:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "tensor": ("IMAGE",),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "BOOLEAN",)
+    FUNCTION = "control"
+    CATEGORY = "FlipStreamViewer"
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return None
+
+    def control(self, tensor):
+        return (tensor, tensor.shape[0] >= 2)
+
+
 class FlipStreamViewer:
     @classmethod
     def INPUT_TYPES(s):
@@ -1141,15 +1180,19 @@ class FlipStreamViewer:
 
 
 NODE_CLASS_MAPPINGS = {
+    "FlipStreamSetMode": FlipStreamSetMode,
     "FlipStreamLoader": FlipStreamLoader,
     "FlipStreamUpdate": FlipStreamUpdate,
     "FlipStreamOption": FlipStreamOption,
+    "FlipStreamSwitchVFI": FlipStreamSwitchVFI,
     "FlipStreamViewer": FlipStreamViewer,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "FlipStreamSetMode": "FlipStreamSetMode",
     "FlipStreamLoader": "FlipStreamLoader",
     "FlipStreamUpdate": "FlipStreamUpdate",
     "FlipStreamOption": "FlipStreamOption",
+    "FlipStreamSwitchVFI": "FlipStreamSwitchVFI",
     "FlipStreamViewer": "FlipStreamViewer",
 }
