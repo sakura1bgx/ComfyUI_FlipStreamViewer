@@ -16,8 +16,8 @@ Please install the following nodes via ComfyUI-Manager:
 - ComfyUI-AutomaticCFG
 
 ## Getting Started
-1. From ComfyUI-Manager, select Manager -> Custom Node Manager and install ComfyUI_FlipStreamViewer.
-2. **Run ComfyUI** and load the `workflow.json` file located in the `workflows` folder.
+1. **Run ComfyUI** and from ComfyUI-Manager, select Manager -> Custom Node Manager and install ComfyUI_FlipStreamViewer.
+2. **Restart ComfyUI** and load the `workflow.json` file located in the `workflows` folder.
 3. Access the viewer at the following URL if ComfyUI is running at `http://localhost:8188`:
 
 `http://localhost:8188/viewer`
@@ -107,7 +107,7 @@ Provide the following text inputs in the viewer:
 ## For More Quality
 
 - Use more higher-quality checkpoint models.
-- To enhance stability between frames, use a deliberate prompt in the 'pre text' to establish a consistent background, such as `on desk, ideal background`.
+- To enhance stability between frames, use a deliberate prompt in the 'pre text' to establish a consistent background, such as `ideal background, on desk`.
 - Select the appropriate words in 'frameN text' to achieve the desired motion. This can be reused in other prompts.
 - Since 0sta is more flexible, it's better to change the Nsta only after testing those first.
 
