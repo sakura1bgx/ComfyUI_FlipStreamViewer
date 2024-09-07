@@ -2,7 +2,7 @@
 
 **ComfyUI_FlipStreamViewer** is a tool that provides a viewer interface for flipping images with frame interpolation, allowing you to watch high-fidelity pseudo-videos without needing AnimateDiff.
 
-![viewer_snapshot](https://github.com/user-attachments/assets/60a0b749-1f92-4287-935a-02f1a31767de)
+![sample](https://github.com/user-attachments/assets/c605bd99-e35b-4012-9b73-505d1496e914)
 
 ## Required Custom Nodes
 
@@ -13,12 +13,10 @@ Please install the following nodes via ComfyUI-Manager:
 - ComfyUI WD 1.4 Tagger
 - FizzNodes
 - LoRA Tag Loader for ComfyUI
+- ComfyUI-AutomaticCFG
 
 ## Getting Started
-1. Navigate to the custom_nodes directory of ComfyUI. Run the following command to clone the repository:
-
-`git clone https://github.com/sakura1bgx/ComfyUI_FlipStreamViewer.git`
-
+1. From ComfyUI-Manager, select Manager -> Custom Node Manager and install ComfyUI_FlipStreamViewer.
 2. **Run ComfyUI** and load the `workflow.json` file located in the `workflows` folder.
 3. Access the viewer at the following URL if ComfyUI is running at `http://localhost:8188`:
 
@@ -32,7 +30,7 @@ Please install the following nodes via ComfyUI-Manager:
 
 ## Prompt Format
 
-Use the following format for input prompts. The 'pre text' and 'append text' sections apply to all frames. The separator `----` should consist of four hyphens, and each line of 'frameN text' applies to individual frames. The '{lora}' means it will be replaced by the LoRA input contents at the right pane.
+Use the following format for input prompts. The 'pre text' and 'append text' sections apply to all frames. The separator `----` should consist of four hyphens, and each line of 'frameN text' applies to individual frames. The '{lora}' means it will be replaced by the LoRA input contents at the right panel.
 
 ```
 pre text,
@@ -56,12 +54,14 @@ append text
 You can adjust the following parameters on the viewer:
 
 - **Seed**: Random seed for KSampler.
+- **Keep**: Keeped seed.
 - **Iv**: Interval in seconds for auto-changing the random seed.
 - **Nstp**: Steps for KSampler.
 - **Ncfg**: CFG for KSampler.
 - **Nsta**: Start step for the second KSampler; increasing this value will stabilize the output between frames.
 - **Nfrm**: Number of frames; each frame undergoes x8 interpolation in the sample workflow.
 - **Nspf**: Seconds per frame displayed in the viewer stream.
+- **Rate**: LoRA late for toggle.
 - **Nwth**: Threshould for WD14Tagger.
 - **Ncth**: Character threshould for WD14Tagger.
 
@@ -69,39 +69,39 @@ You can adjust the following parameters on the viewer:
 
 Provide the following text inputs in the viewer:
 
-- **Prompt Input**: Located at the top of the left pane (refer to the Prompt Format section above).
+- **Prompt Input**: Located at the top of the left panel (refer to the Prompt Format section above).
 - **Negative Prompt Input**: Located below the Prompt Input; this applies to all frames.
-- **LoRA Input**: Located in the middle of the right pane; input LoRA such as `<lora:startsfilename:1>`.
+- **LoRA Input**: Located in the middle of the right panel; input LoRA such as `<lora:startsfilename:1>`.
 
 ## Controls
 
-**Left Pane Buttons:**
+**Left Panel Buttons:**
 
-- **Update**: Apply input data to the workflow.
-- **Change**: Change the seed and update.
+- **U**: Apply input data to the workflow.
+- **R**: Change the random seed and update.
 - **K**: Keep the seed to search for another good seed.
 - **B**: Go back to the previous seed.
 - **M**: Move the checkpoint file.
 
-**Right Pane Buttons:**
+**Right Panel Buttons:**
 
-- **L**: Load a preset.
-- **R**: Select random preset.
-- **P**: Load a preset prompt only.
-- **M**: Move the Preset file.
-- **S**: Save the current preset.
 - **T**: Toggle LoRA enable/disable.
 - **M**: Move the LoRA file.
 - **T**: Toggle tag enable/disable at the LoRA Input.
-- **R**: Switch to random tags at the LoRA Input.
-- **U**: Same as Update.
-- **W**: Apply WD14Tagger to the first frame; outputs tags to LoRA input.
+- **R**: Add random tags at the LoRA Input.
+- **R**: Select random preset.
+- **P**: Load a preset prompt only.
+- **L**: Load a preset.
+- **M**: Move the Preset file.
+- **Save**: Save the current preset.
 - **C**: Capture an image from another browser tab or desktop and set it as the first frame; useful with W.
-- **Clear Below**: Clear the LoRA input.
+- **W**: Apply WD14Tagger to the first frame; outputs tags to LoRA input.
+- **U**: Same as Update.
+- **Clear**: Clear the LoRA input.
 
 ## Additional Features
 
-- **LoRA Preview**: At the bottom of the right pane; click to jump to the Civitai LoRA page if found.
+- **LoRA Preview**: At the bottom of the right panel; click to jump to the Civitai LoRA page if found.
 - **Auto-hide**: Click to hide controls and images or the viewer auto-hides after 5 minutes of inactivity.
 
 ## For More Quality
@@ -111,9 +111,14 @@ Provide the following text inputs in the viewer:
 - Select the appropriate words in 'frameN text' to achieve the desired motion. This can be reused in other prompts.
 - Since 0sta is more flexible, it's better to change the Nsta only after testing those first.
 
+## For More Speed
+
+- ComfyUI commandline options '--highvram --fast --fp8_e4m3fn-unet' are good for speed, however it depends on system and model.
+
 ## Customizing Workflow
 
 You can customize the workflow for specific needs:
 
 - **FlipStreamLoader**: Use the 'mode' parameter to switch between sub-directories for checkpoints and LoRAs, useful for managing models like sd15, pony, etc.
+- **FlipStreamSetMode**: Only change the 'mode' parameter for the workflow without checkpoints.
 - **FlipStreamViewer**: The 'allowip' parameter allows you to set IP addresses that can access the viewer. The 'w14exc' parameter is used to set exclude_tags for the WD14 Tagger.
