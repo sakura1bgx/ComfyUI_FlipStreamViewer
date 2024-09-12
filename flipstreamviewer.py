@@ -7,6 +7,7 @@ from pathlib import Path
 from io import BytesIO
 
 import requests
+import torch
 import numpy as np
 from PIL import Image, ImageDraw
 from aiohttp import web
@@ -125,7 +126,7 @@ div.row {
 #presetTitleInput,
 #loraFileSelect,
 #loraTagSelect {
-    width: 70%;
+    width: 80%;
 }
 
 #stepsRange,
@@ -147,7 +148,7 @@ div.row {
 
 #loraLink img {
     max-width: 100%;
-    max-height: 10em;
+    max-height: 8em;
     width: auto;
     height: auto;
     margin: auto;
@@ -1029,7 +1030,7 @@ class FlipStreamLoader:
     CATEGORY = "FlipStreamViewer"
 
     @classmethod
-    def IS_CHANGED(cls, **kwargs):
+    def IS_CHANGED(cls, mode, default_ckpt):
         return param["checkpoint"]
     
     def loader(self, mode, default_ckpt):
@@ -1059,10 +1060,6 @@ class FlipStreamSetMode:
     FUNCTION = "setmode"
     CATEGORY = "FlipStreamViewer"
 
-    @classmethod
-    def IS_CHANGED(cls, **kwargs):
-        return None
-
     def setmode(self, mode, model):
         param["mode"] = mode
         return (model,)
@@ -1079,18 +1076,17 @@ class FlipStreamUpdate:
     CATEGORY = "FlipStreamViewer"
 
     @classmethod
-    def IS_CHANGED(cls, **kwargs):
+    def IS_CHANGED(cls):
         return (param["prompt"], param["negativePrompt"], param["lora"])
         
-    def update(self, **kwargs):
+    def update(self):
         global frame_updating
         frame_updating = True
-
-        buf = param["prompt"].split("----\n")
-        prompt = buf[0].replace("{lora}", param["lora"])
-        batchPrompt = buf[1] if len(buf) > 1 else "-\n-\n"
-        appPrompt = buf[2] if len(buf) > 2 else ""
-        batchPrompt = ",\n".join([f'"{n}":"{item.lstrip("-").strip()}"' for n, item in enumerate(batchPrompt.strip().split("\n"))])
+        buf = param["prompt"].split("----")
+        prompt = buf[0].replace("{lora}", param["lora"]).strip()
+        batchPrompt = buf[1].strip() if len(buf) > 1 else "-\n-\n"
+        appPrompt = buf[2].strip() if len(buf) > 2 else ""
+        batchPrompt = ",\n".join([f'"{n}":"{item.lstrip("-").strip()}"' for n, item in enumerate(batchPrompt.split("\n"))])
         return (prompt, batchPrompt, appPrompt, param["negativePrompt"])
 
 
@@ -1105,17 +1101,149 @@ class FlipStreamOption:
     CATEGORY = "FlipStreamViewer"
 
     @classmethod
-    def IS_CHANGED(cls, **kwargs):
+    def IS_CHANGED(cls):
         return (param["startstep"], param["frames"], param["seed"], param["steps"], param["cfg"], param["sampler"])
     
-    def option(self, **kwargs):
+    def option(self):
+        global frame_updating
+        frame_updating = True
         if param["startstep"] == 0:
             start_noise = "enable"
         else:
             start_noise = "disable"
         sampler, scheduler = param["sampler"].split(",")
         return (param["startstep"], param["frames"], start_noise, param["seed"], param["steps"], param["cfg"], sampler, scheduler)
-    
+
+
+class FlipStreamBatch:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "batchPrompt": ("STRING", {"multiline": True}),
+                "appPrompt": ("STRING", {"multiline": True}),
+                "clip": ("CLIP",),
+                "frames": ("INT",),
+            }
+        }
+
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "encode"
+    CATEGORY = "FlipStreamViewer"
+
+    def encode(self, prompt, batchPrompt, appPrompt, clip, frames):
+        cond_buf = []
+        pooled_buf = []
+        item = prompt
+        s = json.loads("{" + batchPrompt + "}")
+        for i in range(frames):
+            if i < len(s):
+                item = " ".join([prompt, s[str(i)], appPrompt]).strip()
+            tokens = clip.tokenize(item)
+            cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
+            cond_buf.append(cond)
+            pooled_buf.append(pooled)
+        return ([[torch.cat(cond_buf, dim=0), {"pooled_output":torch.cat(pooled_buf, dim=0)}]],)
+
+
+class FlipStreamMap:
+    @classmethod
+    def INPUT_TYPES(s):
+
+        return {
+            "required": {
+                "model": ("MODEL",),
+                "clip": ("CLIP",),
+                "latent": ("LATENT",),
+                "vae": ("VAE",),
+                "prompt": ("STRING", {"multiline": True}),
+                "batchPrompt": ("STRING", {"multiline": True}),
+                "appPrompt": ("STRING", {"multiline": True}),
+                "negativePrompt": ("STRING", {"multiline": True}),
+                "startstep": ("INT", {"default": 0}),
+                "frames": ("INT", {"default": 1}),
+                "start_noise": (["enable", "disable"],),
+                "seed": ("INT", {"default": 0}),
+                "steps": ("INT", {"default": 13}),
+                "cfg": ("FLOAT", {"default": 4.0}),
+                "sampler": (comfy.samplers.KSampler.SAMPLERS,),
+                "scheduler": (comfy.samplers.KSampler.SCHEDULERS,),
+                "printlog": ("BOOLEAN",),
+            }
+        }
+
+    RETURN_TYPES = ("MODEL","CLIP","LATENT","VAE","INT","STRING","STRING","INT","INT",["enable","disable"],"INT","INT","FLOAT",comfy.samplers.KSampler.SAMPLERS,comfy.samplers.KSampler.SCHEDULERS)
+    RETURN_NAMES = ("model","clip","latent","vae","index","pos","neg","startstep","frames","start_noise","seed","steps","cfg","sampler","scheduler")
+
+    FUNCTION = "map_text"
+    CATEGORY = "FlipStreamViewer"
+
+    _last_input = None
+    _text = None
+    _next_index = 0
+    _serialno = 0
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return cls._serialno
+
+    def map_text(self, model, clip, latent, vae, prompt, batchPrompt, appPrompt, negativePrompt, startstep, frames, start_noise, seed, steps, cfg, sampler, scheduler, printlog):
+        args = (param["checkpoint"], prompt, batchPrompt, appPrompt, negativePrompt, startstep, frames, start_noise, seed, steps, cfg, sampler, scheduler)
+        if FlipStreamMap._last_input != args:
+            FlipStreamMap._last_input = args
+            FlipStreamMap._next_index = 0
+            FlipStreamMap._text = None
+
+        index = FlipStreamMap._next_index
+        text = FlipStreamMap._text
+
+        s = json.loads("{" + batchPrompt + "}")
+        if str(index) in s:
+            text = " ".join([prompt, s[str(index)], appPrompt]).strip()
+        elif text is None:
+            text = prompt
+
+        FlipStreamMap._text = text
+        if index < frames - 1:
+            FlipStreamMap._next_index = index + 1
+            FlipStreamMap._serialno += 1
+
+        if printlog:
+            print(f"----\n{index}: {text}\n----")
+
+        return (model, clip, latent, vae, index, text, negativePrompt, startstep, frames, start_noise, seed, steps, cfg, sampler, scheduler)
+
+
+class FlipStreamReduce:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "tensor": ("IMAGE",),
+                "index": ("INT",),
+                "frames": ("INT",),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE","INT","INT")
+    RETURN_NAMES = ("tensor","index","frames")
+    FUNCTION = "reduce_image"
+    CATEGORY = "FlipStreamViewer"
+
+    def __init__(self):
+        self._buf = []
+        self._image = torch.zeros([1, 4, 512, 512], device="cpu") + 128
+
+    def reduce_image(self, tensor, index, frames):
+        if self._buf is None or index == 0:
+            self._buf = [tensor]
+        self._buf = self._buf[:index]
+        self._buf.append(tensor)
+        if index >= frames - 1:
+            self._image = torch.cat(self._buf, dim=0)
+        return (self._image, index, frames)
+
 
 class FlipStreamSwitchVFI:
     @classmethod
@@ -1123,19 +1251,18 @@ class FlipStreamSwitchVFI:
         return {
             "required": {
                 "tensor": ("IMAGE",),
+                "index": ("INT",),
+                "frames": ("INT",),
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "BOOLEAN",)
+    RETURN_TYPES = ("IMAGE","BOOLEAN","BOOLEAN")
+    RETURN_NAMES = ("tensor","stop","bypass")
     FUNCTION = "control"
     CATEGORY = "FlipStreamViewer"
 
-    @classmethod
-    def IS_CHANGED(cls, **kwargs):
-        return None
-
-    def control(self, tensor):
-        return (tensor, tensor.shape[0] >= 2)
+    def control(self, tensor, index, frames):
+        return (tensor, index >= frames - 1, tensor.shape[0] >= 2)
 
 
 class FlipStreamViewer:
@@ -1151,7 +1278,7 @@ class FlipStreamViewer:
         }
 
     @classmethod
-    def IS_CHANGED(cls, allowip, wd14exc, idle, **kwargs):
+    def IS_CHANGED(cls, tensor, allowip, wd14exc, idle):
         global allowed_ips
         global exclude_tags
         allowed_ips = ["127.0.0.1"] + list(map(str.strip, allowip.split(",")))
@@ -1164,7 +1291,7 @@ class FlipStreamViewer:
     FUNCTION = "update_frame"
     CATEGORY = "FlipStreamViewer"
 
-    def update_frame(self, tensor, **kwargs):
+    def update_frame(self, tensor, allowip, wd14exc, idle):
         global frame_updating
         global frame_buffer
         buffer = []
@@ -1184,6 +1311,9 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamLoader": FlipStreamLoader,
     "FlipStreamUpdate": FlipStreamUpdate,
     "FlipStreamOption": FlipStreamOption,
+    "FlipStreamBatch": FlipStreamBatch,
+    "FlipStreamMap": FlipStreamMap,
+    "FlipStreamReduce": FlipStreamReduce,
     "FlipStreamSwitchVFI": FlipStreamSwitchVFI,
     "FlipStreamViewer": FlipStreamViewer,
 }
@@ -1193,6 +1323,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamLoader": "FlipStreamLoader",
     "FlipStreamUpdate": "FlipStreamUpdate",
     "FlipStreamOption": "FlipStreamOption",
+    "FlipStreamBatch": "FlipStreamBatch",
+    "FlipStreamMap": "FlipStreamMap",
+    "FlipStreamReduce": "FlipStreamReduce",
     "FlipStreamSwitchVFI": "FlipStreamSwitchVFI",
     "FlipStreamViewer": "FlipStreamViewer",
 }
