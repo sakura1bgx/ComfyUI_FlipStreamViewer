@@ -11,7 +11,6 @@ Please install the following nodes via ComfyUI-Manager:
 - ComfyUI Impact Pack
 - ComfyUI Frame Interpolation
 - ComfyUI WD 1.4 Tagger
-- FizzNodes
 - LoRA Tag Loader for ComfyUI
 - ComfyUI-AutomaticCFG
 
