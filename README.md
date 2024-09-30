@@ -2,7 +2,7 @@
 
 **ComfyUI_FlipStreamViewer** is a tool that provides a viewer interface for flipping images with frame interpolation, allowing you to watch high-fidelity pseudo-videos without needing AnimateDiff.
 
-![sample](https://github.com/user-attachments/assets/c605bd99-e35b-4012-9b73-505d1496e914)
+![sample](https://github.com/user-attachments/assets/4ceecd68-bd35-4eb5-95bf-4ce822ff0591)
 
 ## Required Custom Nodes
 
@@ -11,8 +11,9 @@ Please install the following nodes via ComfyUI-Manager:
 - ComfyUI Impact Pack
 - ComfyUI Frame Interpolation
 - ComfyUI WD 1.4 Tagger
-- LoRA Tag Loader for ComfyUI
+- ComfyUI-Advanced-ControlNet
 - ComfyUI-AutomaticCFG
+- LoRA Tag Loader for ComfyUI
 
 ## Getting Started
 1. **Run ComfyUI** and from ComfyUI-Manager, select Manager -> Custom Node Manager and install ComfyUI_FlipStreamViewer.
@@ -60,7 +61,10 @@ You can adjust the following parameters on the viewer:
 - **Nsta**: Start step for the second KSampler; increasing this value will stabilize the output between frames.
 - **Nfrm**: Number of frames; each frame undergoes x8 interpolation in the sample workflow.
 - **Nspf**: Seconds per frame displayed in the viewer stream.
-- **Rate**: LoRA late for toggle.
+- **Rate**: LoRA late for toggle and add tags rank.
+- **Nfst**: Seek first frame for video source
+- **Nskp**: Skip frames for video source
+- **Nstr**: Strength for video source controlnet
 - **Nwth**: Threshould for WD14Tagger.
 - **Ncth**: Character threshould for WD14Tagger.
 
@@ -88,6 +92,7 @@ Provide the following text inputs in the viewer:
 - **M**: Move the LoRA file.
 - **T**: Toggle tag enable/disable at the LoRA Input.
 - **R**: Add random tags at the LoRA Input.
+- **PV**: Preview video source.
 - **R**: Select random preset.
 - **P**: Load a preset prompt only.
 - **L**: Load a preset.
@@ -95,20 +100,20 @@ Provide the following text inputs in the viewer:
 - **Save**: Save the current preset.
 - **C**: Capture an image from another browser tab or desktop and set it as the first frame; useful with W.
 - **W**: Apply WD14Tagger to the first frame; outputs tags to LoRA input.
-- **U**: Same as Update.
-- **Clear**: Clear the LoRA input.
+- **T**: Toggle tags in LoRA input. 
+- **U**: Update without reload; useful with T.
+- **Clr**: Clear the LoRA input.
 
 ## Additional Features
 
 - **LoRA Preview**: At the bottom of the right panel; click to jump to the Civitai LoRA page if found.
-- **Auto-hide**: Click to hide controls and images or the viewer auto-hides after 5 minutes of inactivity.
+- **Auto-hide**: Click to hide controls and images or the viewer auto-hides after 5 minutes of inactivity (reload).
 
 ## For More Quality
 
 - Use more higher-quality checkpoint models.
 - To enhance stability between frames, use a deliberate prompt in the 'pre text' to establish a consistent background, such as `ideal background, on desk`.
 - Select the appropriate words in 'frameN text' to achieve the desired motion. This can be reused in other prompts.
-- Since 0sta is more flexible, it's better to change the Nsta only after testing those first.
 
 ## For More Speed
 
