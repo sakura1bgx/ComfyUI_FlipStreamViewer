@@ -113,7 +113,7 @@ Provide the following text inputs in the viewer:
 
 - Use more higher-quality checkpoint models.
 - To enhance stability between frames, use a deliberate prompt in the 'pre text' to establish a consistent background, such as `ideal background, on desk`.
-- Select the appropriate words in 'frameN text' to achieve the desired motion. This can be reused in other prompts.
+- Select the appropriate words or LoRA in 'frameN text' to achieve the desired motion.
 
 ## For More Speed
 
