@@ -92,57 +92,8 @@
       ],
       "properties": {
         "Node name for S&R": "FlipStreamSwitchVFI"
-      }
-    },
-    {
-      "id": 323,
-      "type": "RIFE VFI",
-      "pos": {
-        "0": 3447.79931640625,
-        "1": 130
       },
-      "size": {
-        "0": 295.6000061035156,
-        "1": 198
-      },
-      "flags": {},
-      "order": 17,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "frames",
-          "type": "IMAGE",
-          "link": 992
-        },
-        {
-          "name": "optional_interpolation_states",
-          "type": "INTERPOLATION_STATES",
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            1385
-          ],
-          "slot_index": 0,
-          "shape": 3
-        }
-      ],
-      "title": "RIFE VFI",
-      "properties": {
-        "Node name for S&R": "RIFE VFI"
-      },
-      "widgets_values": [
-        "rife49.pth",
-        10,
-        8,
-        false,
-        false,
-        1
-      ]
+      "widgets_values": []
     },
     {
       "id": 409,
@@ -529,7 +480,8 @@
       ],
       "properties": {
         "Node name for S&R": "FlipStreamUpdate"
-      }
+      },
+      "widgets_values": []
     },
     {
       "id": 154,
@@ -686,7 +638,8 @@
       ],
       "properties": {
         "Node name for S&R": "VAEDecode"
-      }
+      },
+      "widgets_values": []
     },
     {
       "id": 149,
@@ -788,7 +741,7 @@
       },
       "widgets_values": [
         "enable",
-        514877240136381,
+        660506348802651,
         "randomize",
         9,
         7,
@@ -872,18 +825,82 @@
       ]
     },
     {
-      "id": 372,
-      "type": "FlipStreamLoader",
+      "id": 352,
+      "type": "FlipStreamViewer",
+      "pos": {
+        "0": 3843.399169921875,
+        "1": 130
+      },
+      "size": {
+        "0": 210,
+        "1": 106
+      },
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tensor",
+          "type": "IMAGE",
+          "link": 1385
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "FlipStreamViewer"
+      },
+      "widgets_values": [
+        "",
+        "",
+        1
+      ]
+    },
+    {
+      "id": 407,
+      "type": "ControlNetLoader",
       "pos": {
         "0": 100,
         "1": 643.4000244140625
       },
       "size": {
         "0": 210,
-        "1": 98
+        "1": 58
       },
       "flags": {},
       "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CONTROL_NET",
+          "type": "CONTROL_NET",
+          "links": [
+            1329
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ControlNetLoader"
+      },
+      "widgets_values": [
+        "SDXL\\CN-anytest_v4-marged_pn_dim256.safetensors"
+      ]
+    },
+    {
+      "id": 372,
+      "type": "FlipStreamLoader",
+      "pos": {
+        "0": 100,
+        "1": 831.4000244140625
+      },
+      "size": {
+        "0": 210,
+        "1": 98
+      },
+      "flags": {},
+      "order": 3,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -921,70 +938,6 @@
       },
       "widgets_values": [
         "sd_xl_base_1.0.safetensors"
-      ]
-    },
-    {
-      "id": 407,
-      "type": "ControlNetLoader",
-      "pos": {
-        "0": 100,
-        "1": 871.4000244140625
-      },
-      "size": {
-        "0": 210,
-        "1": 58
-      },
-      "flags": {},
-      "order": 3,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "CONTROL_NET",
-          "type": "CONTROL_NET",
-          "links": [
-            1329
-          ],
-          "slot_index": 0,
-          "shape": 3
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "ControlNetLoader"
-      },
-      "widgets_values": [
-        "control-lora-depth-rank128.safetensors"
-      ]
-    },
-    {
-      "id": 352,
-      "type": "FlipStreamViewer",
-      "pos": {
-        "0": 3843.399169921875,
-        "1": 130
-      },
-      "size": {
-        "0": 210,
-        "1": 106
-      },
-      "flags": {},
-      "order": 18,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "tensor",
-          "type": "IMAGE",
-          "link": 1385
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "Node name for S&R": "FlipStreamViewer"
-      },
-      "widgets_values": [
-        "",
-        "",
-        1
       ]
     },
     {
@@ -1068,8 +1021,59 @@
         "Node name for S&R": "FlipStreamSource"
       },
       "widgets_values": [
-        960,
-        600
+        1024,
+        640
+      ]
+    },
+    {
+      "id": 323,
+      "type": "RIFE VFI",
+      "pos": {
+        "0": 3447.79931640625,
+        "1": 130
+      },
+      "size": [
+        295.6000061035156,
+        198
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "frames",
+          "type": "IMAGE",
+          "link": 992
+        },
+        {
+          "name": "optional_interpolation_states",
+          "type": "INTERPOLATION_STATES",
+          "link": null,
+          "shape": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            1385
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "title": "RIFE VFI",
+      "properties": {
+        "Node name for S&R": "RIFE VFI"
+      },
+      "widgets_values": [
+        "rife49.pth",
+        10,
+        8,
+        false,
+        false,
+        1
       ]
     }
   ],
@@ -1391,10 +1395,10 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.8264462809917354,
+      "scale": 0.5644739300537773,
       "offset": [
-        -3124.9245876312257,
-        92.30582786560052
+        -15.981880526488832,
+        -19.710598176452645
       ]
     },
     "groupNodes": {}
