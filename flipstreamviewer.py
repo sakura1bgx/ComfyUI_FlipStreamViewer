@@ -1318,7 +1318,7 @@ class FlipStreamSource:
         return {
             "required": {
                 "vae": ("VAE",),
-                "default_width": ("INT", {"default": 512}),
+                "width": ("INT", {"default": 512}),
                 "height": ("INT", {"default": 512}),
             },
         }
@@ -1331,11 +1331,11 @@ class FlipStreamSource:
     CATEGORY = "FlipStreamViewer"
 
     @classmethod
-    def IS_CHANGED(cls, vae, default_width, height):
+    def IS_CHANGED(cls, vae, width, height):
         state["height"] = height
-        return hash((default_width, height, param["frames"], param["videosrc"], param["videofst"], param["videoskp"], param["videostr"]))
+        return hash((width, height, param["frames"], param["videosrc"], param["videofst"], param["videoskp"], param["videostr"]))
 
-    def source(self, vae, default_width, height):
+    def source(self, vae, width, height):
         videopath = str(Path("videosrc", param["videosrc"])) if param["videosrc"] else ""
         frames = param["frames"]
         image = None
@@ -1345,12 +1345,16 @@ class FlipStreamSource:
             buf, _ = load_video(videopath, height, param["videofst"], param["videoskp"], frames)
             if buf:
                 buf = [np.array(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), dtype=np.float32) / 255 for frame in buf]
-                image = torch.from_numpy(np.fromiter(buf, np.dtype((np.float32, buf[0].shape))))
+                image = torch.zeros([frames, height, width, 3])
+                image2 = torch.from_numpy(np.fromiter(buf, np.dtype((np.float32, buf[0].shape))))
+                x2 = image.shape[2] // 2
+                w2 = image2.shape[2] // 2
+                image[:, :, x2 - w2: x2 + w2] = image2
                 latent = vae.encode(image)
                 bypass = True
         if image is None:
-            image = torch.zeros([frames, height, default_width, 3])
-            latent = torch.zeros([frames, 4, height // 8, default_width // 8], device=self.device)
+            image = torch.zeros([frames, height, width, 3])
+            latent = torch.zeros([frames, 4, height // 8, width // 8], device=self.device)
         frames, h, w, _ = image.shape
         images = [image[i:i + 1, ...] for i in range(image.shape[0])]
         latents = [{"samples": latent[i:i + 1, ...]} for i in range(latent.shape[0])]
@@ -1387,10 +1391,10 @@ class FlipStreamPrompt:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "prompt": ("STRING", {"multiline": True}),
-                "batchPrompt": ("STRING", {"multiline": True}),
-                "appPrompt": ("STRING", {"multiline": True}),
-                "frames": ("INT",),
+                "prompt": ("STRING", {"multiline": True, "dynamicPrompts": True}),
+                "batchPrompt": ("STRING", {"multiline": True, "dynamicPrompts": True}),
+                "appPrompt": ("STRING", {"multiline": True, "dynamicPrompts": True}),
+                "frames": ("INT", {"default": 0}),
             },
         }
 
@@ -1417,7 +1421,7 @@ class FlipStreamOption:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "mode": ("STRING",),
+                "mode": ("STRING", {"default": ""}),
             }
         }
     
@@ -1464,8 +1468,8 @@ class FlipStreamViewer:
         return {
             "required": {
                 "tensor": ("IMAGE",),
-                "allowip": ("STRING",),
-                "wd14exc": ("STRING",),
+                "allowip": ("STRING", {"default": ""}),
+                "wd14exc": ("STRING", {"default": ""}),
                 "idle": ("FLOAT", {"default": 1.0}),
             },
         }
