@@ -1381,7 +1381,7 @@ class FlipStreamUpdate:
         buf = param["prompt"].split("----")
         prompt = buf[0].replace("{lora}", param["lora"]).strip()
         batchPrompt = buf[1].strip() if len(buf) > 1 else "-\n-\n"
-        appPrompt = buf[2].strip() if len(buf) > 2 else ""
+        appPrompt = buf[2].replace("{lora}", param["lora"]).strip() if len(buf) > 2 else ""
         batchPrompt = ",\n".join([f'"{n}":"{item.lstrip("-").strip()}"' for n, item in enumerate(batchPrompt.split("\n"))])
         return (prompt, batchPrompt, appPrompt, param["negativePrompt"])
 
