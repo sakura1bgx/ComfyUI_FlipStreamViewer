@@ -24,7 +24,7 @@ checkpoints_list = folder_paths.get_filename_list("checkpoints")
 
 allowed_ips = ["127.0.0.1"]
 param = {"prompt": "", "negativePrompt": "", "seed": 0, "keepSeed": 0, "steps": 13, "cfg": 4, "interval": 30, "sampler": "dpmpp_2m,sgm_uniform", "checkpoint": "", "lora": "", "startstep": 0, "frames": 1, "framewait": 1, "videosrc": "", "videofst": 0, "videomax": 0, "videoskp": 8, "videostr": 1, "offsetX": 0, "offsetY": 0, "scale": 100}
-state = {"mode": "", "height": 512, "autoUpdate": False, "presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "checkpointFolder": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "wd14th": 0.35, "wd14cth": 0.85}
+state = {"mode": "", "width": 512, "height": 512, "autoUpdate": False, "presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "checkpointFolder": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "wd14th": 0.35, "wd14cth": 0.85}
 frame_updating = False
 frame_buffer = []
 exclude_tags = ""
@@ -990,7 +990,7 @@ async def viewer(request):
                 <button id="previewVideoButton" onclick="previewVideo()">PV</button>
             </div>
             <div class="row">
-                <input id="videoFstRange" type="range" min="0" max="0" step="1" value="{param["videofst"]}" oninput="videoFstValue.innerText = this.value;" />
+                <input id="videoFstRange" type="range" min="0" max="{param["videomax"]}" step="1" value="{param["videofst"]}" oninput="videoFstValue.innerText = this.value;" />
                 <span id="videoFstValue">{param["videofst"]}</span>fst
             </div>
             <div class="row">
@@ -1161,7 +1161,7 @@ async def set_frame(request):
     return web.Response(status=200)
 
 
-def load_video(path, height, videofst, videoskp, maxcount):
+def load_video(path, maxwidth, height, videofst, videoskp, maxcount):
     cap = cv2.VideoCapture(path)
     if not cap.isOpened():
         return [], 0
@@ -1180,6 +1180,9 @@ def load_video(path, height, videofst, videoskp, maxcount):
             scale = height / frame.shape[0]
             width = int(frame.shape[1] * scale // 8 * 8)
             frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_LANCZOS4)
+        if width > maxwidth:
+            x = int(frame.shape[1] / 2 - maxwidth / 2)
+            frame = frame[:, x:x + maxwidth]
         buf.append(frame)
     return buf, total_frames
 
@@ -1191,7 +1194,7 @@ async def preview_video(request):
         raise HTTPForbidden()
     
     videosrc, videofst, videoskp, frames = await request.json()
-    buf, total_frames = load_video(str(Path("videosrc", videosrc)), state["height"], videofst, videoskp, frames)
+    buf, total_frames = load_video(str(Path("videosrc", videosrc)), state["width"], state["height"], videofst, videoskp, frames)
     buf = [BytesIO(cv2.imencode(".webp", frame)[1]).getvalue() for frame in buf]
     buf += buf[::-1]
     frame_buffer = buf
@@ -1332,6 +1335,7 @@ class FlipStreamSource:
 
     @classmethod
     def IS_CHANGED(cls, vae, width, height):
+        state["width"] = width
         state["height"] = height
         return hash((width, height, param["frames"], param["videosrc"], param["videofst"], param["videoskp"], param["videostr"]))
 
@@ -1342,7 +1346,7 @@ class FlipStreamSource:
         latent = None
         bypass = False
         if videopath:
-            buf, _ = load_video(videopath, height, param["videofst"], param["videoskp"], frames)
+            buf, _ = load_video(videopath, width, height, param["videofst"], param["videoskp"], frames)
             if buf:
                 buf = [np.array(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), dtype=np.float32) / 255 for frame in buf]
                 image = torch.zeros([frames, height, width, 3])
