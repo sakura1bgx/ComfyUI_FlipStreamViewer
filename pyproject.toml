@@ -1,7 +1,7 @@
 [project]
 name = "comfyui_flipstreamviewer"
-description = "ComfyUI_FlipStreamViewer is a tool that provides a viewer interface for flipping images with frame interpolation, allowing you to watch high-fidelity pseudo-videos without needing AnimateDiff. Please note that this tool is not designed with security measures against third-party attacks. Therefore, it should only be used for personal purposes within a secure network."
-version = "2.1.0"
+description = "ComfyUI_FlipStreamViewer is a tool that provides a customizable viewer interface for flipping images with frame interpolation, allowing you to watch high-fidelity pseudo-videos without needing AnimateDiff."
+version = "3.0.0"
 license = {file = "LICENSE.txt"}
 
 [project.urls]
