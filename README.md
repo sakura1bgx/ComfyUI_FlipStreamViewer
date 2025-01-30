@@ -40,7 +40,7 @@ Please install the following nodes via ComfyUI-Manager:
 
 - **Customizable Left Panel**: The left panel UI is customizable with UI nodes such as FlipStreamSlider, FlipStreamTextBox, FlipStreamInputBox, FlipStreamSelectBox_\*, FlipStreamFileSelect_\*, and FlipStreamPreviewBox.
 - **UI Node Ordering**: These UI nodes are ordered by their titles, and you can change the node titles to something like '10.steps' or '11.cfg'. You can also click on the title to compact the node on the workflow.
-- **Label Input**: Each UI node has a 'label' input, which should be a unique identifier used as the parameter name.
+- **Label Input**: Each UI node has a 'label' input, which should be a unique identifier used as the parameter name. 'loramode', 'lora', 'offsetX', 'offsetY' and 'scale' are internally used, so they cannot be used for labels.
 - **Enable Output**: Each UI node also has an 'enable' output to use with 'Control Bridge' for switching to bypass some nodes or FlipStreamSwitch* for switching input.
 - **Right Panel**: You can operate several prepared functions such as Status, Darker, Tagger, Preset, and Lora.
 - **Status**: The right panel shows ComfyUI status and error information.
@@ -99,3 +99,4 @@ append text
 - **simple.json**: Customized a ComfyUI default workflow for FlipStreamViewer UI nodes.
 - **dmd2_lora.json**: Using DMD2 and some LoRA, only needs 5 steps to generate an image. This workflow depends on 'LoRA Tag Loader for ComfyUI'.
 - **segmask.json**: A 2-step process for generating frames using batch prompts and segmentation mask, followed by interpolation. This workflow depends on 'LoRA Tag Loader for ComfyUI', 'ComfyUI-Frame-Interpolation' and 'ComfyUI-Florence2'. It will use the 'microsoft/Florence-2-large' model, which you can download using the DownloadAndLoadFlorence2Model node of ComfyUI-Florence2, or if you want to skip it, bypass 'FlipStreamSegMask' and 'Set Latent Noise Mask', and it will ignore segmentation mask.
+- **animate.json**: Using AnimateDiff with FlipStreamVideoInput, FlipStreamBatchPrompt, and FlipStreamFilmVfi. This workflow depends on 'ComfyUI-AnimateDiff-Evolved'. You can adjust 'vscale' and 'veffect' to control motion quality.
