@@ -1,5 +1,5 @@
 {
-  "last_node_id": 48,
+  "last_node_id": 49,
   "last_link_id": 89,
   "nodes": [
     {
@@ -60,7 +60,7 @@
       ],
       "size": [
         210,
-        246
+        266
       ],
       "flags": {
         "collapsed": true
@@ -70,12 +70,17 @@
       "inputs": [],
       "outputs": [
         {
-          "name": "path",
+          "name": "file",
           "type": "*",
           "links": [
             10
           ],
           "slot_index": 0
+        },
+        {
+          "name": "path",
+          "type": "*",
+          "links": null
         },
         {
           "name": "enable",
@@ -293,45 +298,6 @@
         "",
         1,
         8
-      ]
-    },
-    {
-      "id": 33,
-      "type": "FlipStreamFilmVfi",
-      "pos": [
-        2270.01904296875,
-        189.28005981445312
-      ],
-      "size": [
-        210,
-        82
-      ],
-      "flags": {},
-      "order": 29,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "frames",
-          "type": "IMAGE",
-          "link": 43
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            44
-          ],
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "FlipStreamFilmVfi"
-      },
-      "widgets_values": [
-        8,
-        100
       ]
     },
     {
@@ -562,29 +528,6 @@
       ]
     },
     {
-      "id": 30,
-      "type": "Note",
-      "pos": [
-        -130.1117401123047,
-        429.4935607910156
-      ],
-      "size": [
-        269.9588317871094,
-        93.0940170288086
-      ],
-      "flags": {},
-      "order": 3,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [],
-      "properties": {},
-      "widgets_values": [
-        "Using lora files:\n\ndmd2_sdxl_4step_lora_fp16.safetensors from https://huggingface.co/tianweiy/DMD2/tree/main"
-      ],
-      "color": "#432",
-      "bgcolor": "#653"
-    },
-    {
       "id": 15,
       "type": "FlipStreamInputBox",
       "pos": [
@@ -598,7 +541,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 4,
+      "order": 3,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -712,7 +655,7 @@
       },
       "widgets_values": [
         "disable",
-        455097485017673,
+        1001307473401221,
         "randomize",
         20,
         1,
@@ -1009,7 +952,7 @@
       },
       "widgets_values": [
         "enable",
-        108965166715117,
+        1100646290435457,
         "randomize",
         20,
         1,
@@ -1018,60 +961,6 @@
         0,
         10000,
         "enable"
-      ]
-    },
-    {
-      "id": 43,
-      "type": "FlipStreamSegMask",
-      "pos": [
-        1330.138916015625,
-        291.3784484863281
-      ],
-      "size": [
-        210,
-        66
-      ],
-      "flags": {},
-      "order": 23,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "tensor",
-          "type": "IMAGE",
-          "link": 84
-        },
-        {
-          "name": "target",
-          "type": "STRING",
-          "link": 86,
-          "widget": {
-            "name": "target"
-          }
-        }
-      ],
-      "outputs": [
-        {
-          "name": "preview",
-          "type": "IMAGE",
-          "links": [
-            85
-          ],
-          "slot_index": 0
-        },
-        {
-          "name": "mask",
-          "type": "MASK",
-          "links": [
-            89
-          ],
-          "slot_index": 1
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "FlipStreamSegMask"
-      },
-      "widgets_values": [
-        ""
       ]
     },
     {
@@ -1129,7 +1018,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 5,
+      "order": 4,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1178,7 +1067,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 6,
+      "order": 5,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1228,7 +1117,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 7,
+      "order": 6,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1265,7 +1154,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 8,
+      "order": 7,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1355,7 +1244,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 9,
+      "order": 8,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1405,7 +1294,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 10,
+      "order": 9,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1457,7 +1346,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 11,
+      "order": 10,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1494,7 +1383,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 12,
+      "order": 11,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1528,6 +1417,122 @@
         10,
         1
       ]
+    },
+    {
+      "id": 43,
+      "type": "FlipStreamSegMask",
+      "pos": [
+        1330.138916015625,
+        291.3784484863281
+      ],
+      "size": [
+        210,
+        66
+      ],
+      "flags": {},
+      "order": 23,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "tensor",
+          "type": "IMAGE",
+          "link": 84
+        },
+        {
+          "name": "target",
+          "type": "STRING",
+          "link": 86,
+          "widget": {
+            "name": "target"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "preview",
+          "type": "IMAGE",
+          "links": [
+            85
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": [
+            89
+          ],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "FlipStreamSegMask"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 33,
+      "type": "FlipStreamFilmVfi",
+      "pos": [
+        2270.01904296875,
+        189.28005981445312
+      ],
+      "size": [
+        210,
+        82
+      ],
+      "flags": {},
+      "order": 29,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "frames",
+          "type": "IMAGE",
+          "link": 43
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            44
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "FlipStreamFilmVfi"
+      },
+      "widgets_values": [
+        8,
+        100
+      ]
+    },
+    {
+      "id": 30,
+      "type": "Note",
+      "pos": [
+        -243.73464965820312,
+        21.333702087402344
+      ],
+      "size": [
+        325.1155700683594,
+        135.01312255859375
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "This workflow depends on additional custom nodes:\nLoRA Tag Loader for ComfyUI\nComfyUI-Florence2\nComfyUI-Frame-Interpolation\n\nUsing lora files:\ndmd2_sdxl_4step_lora_fp16.safetensors from https://huggingface.co/tianweiy/DMD2/tree/main"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
     }
   ],
   "links": [
@@ -1888,17 +1893,21 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.7513148009015781,
+      "scale": 0.5993439296133066,
       "offset": [
-        -851.6789375502141,
-        -6.973656498122496
+        262.0605205864992,
+        207.24436173360732
       ]
     },
     "node_versions": {
-      "comfyui_flipstreamviewer": "5a8f1af2e82d99fe545dbabbb494647af0b19bbb",
-      "comfy-core": "0.3.13",
+      "ComfyUI_FlipStreamViewer": "c727b903bb52c60932d2cd2b3841c6248d25854c",
+      "comfy-core": "0.3.14",
       "comfyui_lora_tag_loader": "c1e1a061d42384e06ff6c547c4a00aef7cc96e59"
-    }
+    },
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
   },
   "version": 0.4
 }

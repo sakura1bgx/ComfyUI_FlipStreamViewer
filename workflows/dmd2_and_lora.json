@@ -480,7 +480,7 @@
       ],
       "size": [
         210,
-        246
+        266
       ],
       "flags": {
         "collapsed": true
@@ -490,12 +490,17 @@
       "inputs": [],
       "outputs": [
         {
-          "name": "path",
+          "name": "file",
           "type": "*",
           "links": [
             10
           ],
           "slot_index": 0
+        },
+        {
+          "name": "path",
+          "type": "*",
+          "links": null
         },
         {
           "name": "enable",
@@ -1119,12 +1124,12 @@
       "id": 30,
       "type": "Note",
       "pos": [
-        -239.78614807128906,
-        455.0487976074219
+        -227.77297973632812,
+        -2.78507137298584
       ],
       "size": [
-        275.2828369140625,
-        121.84362030029297
+        370.0531005859375,
+        152.54388427734375
       ],
       "flags": {},
       "order": 12,
@@ -1133,7 +1138,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "Using lora files:\n\ndmd2_sdxl_4step_lora_fp16.safetensors from https://huggingface.co/tianweiy/DMD2/tree/main\n\npixel-art-xl-v1.1.safetensors from\nhttps://civitai.com/models/120096/pixel-art-xl"
+        "This workflow depends on additional custom nodes:\nLoRA Tag Loader for ComfyUI\n\nUsing lora files:\ndmd2_sdxl_4step_lora_fp16.safetensors from https://huggingface.co/tianweiy/DMD2/tree/main\npixel-art-xl-v1.1.safetensors from\nhttps://civitai.com/models/120096/pixel-art-xl"
       ],
       "color": "#432",
       "bgcolor": "#653"
@@ -1369,17 +1374,21 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.6830134553650707,
+      "scale": 0.5993439296133066,
       "offset": [
-        345.3005491283586,
-        19.586917633514247
+        276.7432726354348,
+        187.22241786354834
       ]
     },
     "node_versions": {
-      "comfyui_flipstreamviewer": "5a8f1af2e82d99fe545dbabbb494647af0b19bbb",
-      "comfy-core": "0.3.13",
+      "ComfyUI_FlipStreamViewer": "c727b903bb52c60932d2cd2b3841c6248d25854c",
+      "comfy-core": "0.3.14",
       "comfyui_lora_tag_loader": "c1e1a061d42384e06ff6c547c4a00aef7cc96e59"
-    }
+    },
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
   },
   "version": 0.4
 }
