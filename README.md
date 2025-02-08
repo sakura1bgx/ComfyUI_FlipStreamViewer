@@ -1,20 +1,8 @@
 # ComfyUI_FlipStreamViewer
 
-**ComfyUI_FlipStreamViewer** is a tool that provides a customizable viewer interface for flipping images with frame interpolation, allowing you to watch high-fidelity pseudo-videos without needing AnimateDiff.
+**ComfyUI_FlipStreamViewer** is a tool that provides a customizable viewer interface for flipping images with frame interpolation.
 
 <div><video controls src="https://github.com/user-attachments/assets/2a40c7c6-045e-4d86-a0fd-51a24f5472b4"></video></div>
-
-## Required Custom Nodes
-
-Please install the following nodes via ComfyUI-Manager:
-
-- ComfyUI Impact Pack  ; Required
-- LoRA Tag Loader for ComfyUI  ; Optional for workflow
-- ComfyUI-Frame-Interpolation  ; Optional for FlipStreamFilmVfi
-- ComfyUI-WD14-Tagger  ; Optional for Tagger
-- ComfyUI-Florence2  ; Optional for FlipStreamSegMask
-- ComfyUI_TensorRT  ; Optional for FlipStreamFileSelect_TensorRT
-- ComfyUI-AnimateDiff-Evolved  ; Optional for FlipStreamFileSelect_AnimateDiffModel
 
 ## Getting Started
 1. **Run ComfyUI** and from ComfyUI-Manager, select Manager -> Custom Node Manager and install ComfyUI_FlipStreamViewer.
@@ -30,6 +18,21 @@ Please install the following nodes via ComfyUI-Manager:
 5. The UI nodes will refresh after the workflow is completed once, so you need to click 'Update and reload' after that.
 
 6. The 'preset' folder may be created in the current directory for saving and loading preset files.
+
+## Optional Custom Nodes dependencies
+
+The following custom nodes can be used as needed:
+- ComfyUI-WD14-Tagger: For Tagger
+- ComfyUI-Inspyrenet-Rembg: For FlipStreamRembg
+- ComfyUI-Florence2: For FlipStreamSegMask
+- ComfyUI-Frame-Interpolation: For FlipStreamFilmVfi
+
+The following custom nodes may also be used within workflows:
+- ComfyUI Impact Pack
+- LoRA Tag Loader for ComfyUI
+- ComfyUI-AnimateDiff-Evolved
+- ComfyUI-VideoHelperSuite
+- ComfyUI-DepthAnythingV2
 
 ### Limitations
 
@@ -51,8 +54,9 @@ Please install the following nodes via ComfyUI-Manager:
 - **Lora**: You can select LoRA and choose tags. It can also choose random tags. The LoRA preview box can be clicked to jump to the Civitai LoRA page if found. The 'M' button means Move to another folder. The 'T' button means Toggle. The 'R' button means Random choose.
 - **Auto Hide**: Stream and preview in the viewer will automatically hide after 5 minutes if the page is not reloaded.
 
-## Nodes
+## Customizable UI Nodes
 
+- **FlipStreamSection**: A section label for UI Nodes.
 - **FlipStreamSlider**: A slider for adjusting values.
 - **FlipStreamTextBox**: A text box for inputting multiline text.
 - **FlipStreamInputBox**: An input box for various boxtype inputs. The 'U' button means update. You can choose special boxtype 'seed' or 'r4d' with the 'R' button, which means randomize. The boxtype 'r4d' can be used to generate a 4-digit part of a prompt like 'MOV_{num}'. In this case, FlipStreamTextReplace can help find '{num}' and replace with the output of the input box.
@@ -60,17 +64,24 @@ Please install the following nodes via ComfyUI-Manager:
 - **FlipStreamSelectBox_Scheduler**: A select box for choosing schedulers.
 - **FlipStreamFileSelect_Checkpoints**: A file selector for checkpoints. 'mode' is used to select a subfolder such as 'sd15', 'sdxl', 'pony', or 'flux' in 'checkpoints'. If 'use_lora' is true, it will also affect the 'mode' for the Lora selector. 'use_sub' means using subfolders in the 'mode' folder. 'use_move' means using the move file selector.
 - **FlipStreamFileSelect_VAE**: A file selector for VAE models.
+- **FlipStreamFileSelect_ControlNetModel**: A file selector for ControlNet models.
 - **FlipStreamFileSelect_TensorRT**: A file selector for TensorRT models. It may be used with ComfyUI_TensorRT.
 - **FlipStreamFileSelect_AnimateDiffModel**: A file selector for AnimateDiff models. It may be used with ComfyUI-AnimateDiff-Evolved.
-- **FlipStreamFileSelect_VideoSrc**: A file selector for video sources.
+- **FlipStreamFileSelect_Input**: A file selector for ComfyUI input folder.
+- **FlipStreamFileSelect_Output**: A file selector for ComfyUI output folder.
 - **FlipStreamPreviewBox**: A box for previewing input image.
+
+## Other Nodes
+
 - **FlipStreamSetParam**: A node for setting parameters. However, it needs a reload to update the value in the viewer UI.
 - **FlipStreamGetParam**: A node for getting parameters. 'lora' is a prepared parameter that contains text at the Lora input. Some prompts can contain '{lora}' and FlipStreamTextReplace can help find '{lora}' and replace it with the output of the get param node of 'lora'. 'b64dec' is true for 'lora' and other 'FlipStreamTextBox' parameters, because these multiline parameters are internally base64 encoded.
 - **FlipStreamImageSize**: A node for getting image size.
 - **FlipStreamTextReplace**: A node for replacing text. It will output the result of `text.replace(find, replace.format(value))`.
-- **FlipStreamVideoInput**: A node for video input. FlipStreamFileSelect_VideoSrc can be used to select the path for this node.
+- **FlipStreamScreenGrabber**: A node for grab multiframe screenshots.
+- **FlipStreamSource**: A node for prepare image or latent source.
 - **FlipStreamSwitchImage**: A node for switching images.
 - **FlipStreamSwitchLatent**: A node for switching latents.
+- **FlipStreamRembg**: A node for remove background. It depends on ComfyUI-Inspyrenet-Rembg.
 - **FlipStreamSegMask**: A node for segmentation masks. The target can contain multiple words separated by commas for segmentation. It will use the 'microsoft/Florence-2-large' model, which you can download using the DownloadAndLoadFlorence2Model node of ComfyUI-Florence2. Segmentation sometimes fails, so you may need to try some other random seeds.
 - **FlipStreamBatchPrompt**: A node for simple batch prompting. Use the following format for the input prompt of this node. The 'pre text' and 'append text' sections apply to all frames. The separator `----` should consist of four hyphens, and each line of 'frame text' applies evenly to the number of frames specified in 'frames'. For example, if 'frames' is 8 and there are 2 'frame text' lines, they will be applied starting from frames 0 and 4.
 ```
@@ -97,6 +108,7 @@ append text
 ## Workflow Examples
 
 - **simple.json**: Customized a ComfyUI default workflow for FlipStreamViewer UI nodes.
-- **dmd2_lora.json**: Using DMD2 and some LoRA, only needs 5 steps to generate an image. This workflow depends on 'LoRA Tag Loader for ComfyUI'.
-- **segmask.json**: A 2-step process for generating frames using batch prompts and segmentation mask, followed by interpolation. This workflow depends on 'LoRA Tag Loader for ComfyUI', 'ComfyUI-Frame-Interpolation' and 'ComfyUI-Florence2'. It will use the 'microsoft/Florence-2-large' model, which you can download using the DownloadAndLoadFlorence2Model node of ComfyUI-Florence2, or if you want to skip it, bypass 'FlipStreamSegMask' and 'Set Latent Noise Mask', and it will ignore segmentation mask.
-- **animate.json**: Using AnimateDiff with FlipStreamVideoInput, FlipStreamBatchPrompt, and FlipStreamFilmVfi. This workflow depends on 'ComfyUI-AnimateDiff-Evolved'. You can adjust 'vscale' and 'veffect' to control motion quality.
+- **dmd2_lora.json**: Using DMD2 and some LoRA, only needs 5 steps to generate an image.
+- **segmask.json**: A 2-step process for generating frames using batch prompts and segmentation mask, followed by interpolation.
+- **animate.json**: Using AnimateDiff with FlipStreamSource, FlipStreamBatchPrompt, and FlipStreamFilmVfi.
+- **grab_rembg_depth_animate.json**: Using ControlNet and AnimateDiff with FlipStreamScreenGrabber, FlipStreamRembg.
