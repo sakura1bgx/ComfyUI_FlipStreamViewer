@@ -887,12 +887,14 @@ function parseQueryParam() {
         const presetFolder = document.getElementById("presetFolderSelect").value;
         if (presetFolder != p.get("presetFolder")) {
             updateParam(true, { presetFolder: p.get("presetFolder") }, {}, p.toString());
+            return;
         }
     }
-    if (p.has("preset")) {
+    if (p.has("presetFile")) {
         const presetFile = document.getElementById("presetFileSelect").value;
-        if (presetFile != p.get("preset")) {
-            loadPresets(false, { preset: p.get("preset") }, p.toString());
+        if (presetFile != p.get("presetFile")) {
+            loadPreset(false, { presetFile: p.get("presetFile") }, p.toString());
+            return;
         }
     }
 }
@@ -1303,11 +1305,9 @@ async def viewer(request):
                 <span id="darkerValue">{state["darker"]}</span>drk
             </div>
             <div class="row"><i>Preset</i></div>
-            <div class="row">
-                {"".join([f"""
-                <button onclick="loadPreset(false, {{ presetFile: '{file.name}' }}, 'showPresetDialog')">{file.stem}</button>
+            {"".join([f"""
+            <button onclick="loadPreset(false, {{ presetFile: '{file.name}' }}, 'showPresetDialog')">{file.stem}</button>
             """ for file in Path("preset", state["presetFolder"]).glob("*.json")])}
-            </div>
         </div>
     </div>
     <script>
