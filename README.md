@@ -50,8 +50,11 @@ The following custom nodes may also be used within workflows:
 - **Darker**: You can adjust the image brightness on the viewer using the darker parameter. It can also be set via query:
 `http://localhost:8188/flipstreamviewer?darker=0.33`
 - **Tagger**: You can capture screenshots and generate tags from images using WD14. It depends on ComfyUI-WD14-Tagger.
-- **Preset**: You can save and load parameters that are set on viewer controls. The 'M' button means Move to another folder.
+- **Preset**: You can save and load parameters that are set on viewer controls. The 'M' button means Move to another folder. It can also be set via query:
+`http://localhost:8188/flipstreamviewer?showPresetDialog=1&presetFolder=folder_name&presetFile=file_name.json`
 - **Lora**: You can select LoRA and choose tags. It can also choose random tags. The LoRA preview box can be clicked to jump to the Civitai LoRA page if found. The 'M' button means Move to another folder. The 'T' button means Toggle. The 'R' button means Random choose.
+- **Toggle View**: You can click the center panel to hide the left and right panels, and a subsequent click will hide the image. It can also be set via query: 
+`http://localhost:8188/flipstreamviewer?toggleView=1`
 - **Auto Hide**: Stream and preview in the viewer will automatically hide after 5 minutes if the page is not reloaded.
 
 ## UI Nodes
