@@ -9,7 +9,6 @@ import concurrent.futures
 from pathlib import Path
 from io import BytesIO
 
-import cv2
 import requests
 import torch
 import torchvision.transforms.functional as F
@@ -63,6 +62,7 @@ param = {"loramode": "", "lora": "", "_capture_offsetX": 0, "_capture_offsetY": 
 state = {"presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
 frame_updating = False
 frame_buffer = []
+frame_index = 0
 frame_fps = 8
 exclude_tags = ""
 
@@ -767,6 +767,11 @@ function hideView() {
 setTimeout(hideView, 300 * 1000);
 
 function refreshStatus() {
+    const refresh = document.getElementById("refreshCheckbox").checked;
+    if (!refresh) {
+        return;
+    }
+
     fetch("/flipstreamviewer/get_status").then(response => {
         if (response.ok) {
             response.json().then(json => {
@@ -928,16 +933,19 @@ async def stream(request):
     response.content_type = "multipart/x-mixed-replace; boundary=frame"
     await response.prepare(request)
     
+    global frame_index
+    last_time = time.time()
     while request.transport and not request.transport.is_closing():
         if frame_buffer:
-            if len(frame_buffer) > 1:
-                frame = frame_buffer.pop(0)
-                frame_buffer.append(frame)
-            else:
-                frame = frame_buffer[0]
+            if frame_index >= len(frame_buffer):
+                frame_index = 0
+            frame = frame_buffer[frame_index]
+            frame_index += 1
             await response.write(b"--frame\r\nContent-Type: image/webp\r\n\r\n" + frame + b"\r\n")
-        if frame_fps >= 1:
-            await asyncio.sleep(1 / frame_fps)
+            await asyncio.sleep(max(0, (1 / frame_fps) - (time.time() - last_time)))
+            last_time = time.time()
+        else:
+            await asyncio.sleep(0.1)
     return response
 
 
@@ -1120,6 +1128,9 @@ async def viewer(request):
         </div>
         <div id="rightPanel">
             <div class="row"><i>Status</i></div>
+            <div class="row">
+                <input id="refreshCheckbox" type="checkbox">refresh</input>
+            </div>
             <div class="row">
                 <div id="frameUpdatingInfo"></div>:
                 <div id="runningInfo"></div>:
