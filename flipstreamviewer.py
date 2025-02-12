@@ -5,13 +5,12 @@ import html
 import json
 import threading
 import time
-import concurrent.futures
 from pathlib import Path
 from io import BytesIO
 
+import imageio.v3 as iio
 import requests
 import torch
-import torchvision.transforms.functional as F
 import torch.nn.functional as NNF
 import transformers
 import numpy as np
@@ -56,14 +55,14 @@ def btoa(value):
 def atob(value):
     return base64.b64decode(value.encode()).decode("latin-1")
 
+STREAM_COMPRESSION = 1
 allowed_ips = ["127.0.0.1"]
 setparam = {}
 param = {"loramode": "", "lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
 state = {"presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
 frame_updating = False
-frame_buffer = []
-frame_index = 0
-frame_fps = 8
+frame_buffer = None
+frame_mtime = 0
 exclude_tags = ""
 
 class AnyType(str):
@@ -83,9 +82,8 @@ html {
 
 body {
     color: lightgray;
-    background: url(/flipstreamviewer/stream) no-repeat top center local;
-    background-color:rgba(0, 0, 0, 0);
-    background-blend-mode:overlay;
+    background: url('/flipstreamviewer/stream') rgba(0, 0, 0, 0) no-repeat top center local;
+    background-blend-mode: overlay;
     margin: 4px;
     padding: 0px;
 }
@@ -162,12 +160,8 @@ div.row {
     max-width: 100%;
 }
 
-#frameUpdatingInfo {
-    color: teal;
-}
-
-#errorMessage {
-    color: orange;
+#statusInfo {
+    line-break: anywhere;
 }
 
 #leftPanel,
@@ -282,10 +276,7 @@ function getStateAsJson(force_state={}) {
     const wd14th = parseFloat(document.getElementById("wd14thRange").value);
     const wd14cth = parseFloat(document.getElementById("wd14cthRange").value);
     var res = { presetTitle: presetTitle, presetFolder: presetFolder, presetFile: presetFile, loraRate: loraRate, loraRank: loraRank, loraFolder: loraFolder, loraFile: loraFile, loraTagOptions: loraTagOptions, loraTag: loraTag, loraLinkHref: loraLinkHref, loraPreviewSrc: loraPreviewSrc, loraTagOptions: loraTagOptions, darker: darker, wd14th: wd14th, wd14cth: wd14cth };
-    elem = document.querySelectorAll('.FlipStreamFolderSelect');
-    elem.forEach(x => {
-        res[x.name] = x.value;
-    });
+    document.querySelectorAll('.FlipStreamFolderSelect').forEach(x => res[x.name] = x.value);
     res = Object.assign(res, force_state);
     return res;
 }
@@ -297,26 +288,11 @@ function getParamAsJson(force_param={}) {
     const _capture_scale = parseInt(document.getElementById("scaleRange").value);
 
     var res = { lora: lora, _capture_offsetX: _capture_offsetX, _capture_offsetY: _capture_offsetY, _capture_scale: _capture_scale }
-    var elem = document.querySelectorAll('.FlipStreamSlider');
-    elem.forEach(x => {
-        res[x.name] = x.value;
-    });
-    elem = document.querySelectorAll('.FlipStreamTextBox');
-    elem.forEach(x => {
-        res[x.name] = btoa(x.value);
-    });
-    elem = document.querySelectorAll('.FlipStreamInputBox');
-    elem.forEach(x => {
-        res[x.name] = x.value;
-    });
-    elem = document.querySelectorAll('.FlipStreamSelectBox');
-    elem.forEach(x => {
-        res[x.name] = x.value;
-    });
-    elem = document.querySelectorAll('.FlipStreamFileSelect');
-    elem.forEach(x => {
-        res[x.name] = x.value;
-    });
+    document.querySelectorAll('.FlipStreamSlider').forEach(x => res[x.name] = x.value);
+    document.querySelectorAll('.FlipStreamTextBox').forEach(x => res[x.name] = btoa(x.value));
+    document.querySelectorAll('.FlipStreamInputBox').forEach(x => res[x.name] = x.value);
+    document.querySelectorAll('.FlipStreamSelectBox').forEach(x => res[x.name] = x.value);
+    document.querySelectorAll('.FlipStreamFileSelect').forEach(x => res[x.name] = x.value);
     res = Object.assign(res, force_param);
     return res;
 }
@@ -609,15 +585,14 @@ function randomTag() {
 }
 
 async function addWD14Tag() {
-    fetch("/flipstreamviewer/get_wd14tag", {
+    const json = await (await fetch("/flipstreamviewer/get_wd14tag", {
         method: "POST",
         body: JSON.stringify(getStateAsJson()),
         headers: {"Content-Type": "application/json"}
-    }).then(response => response.json()).then(json => {
-        loraInput.value += "\n" + json.tags + "\n";
-    }).catch(error => {
-        alert(`Failed to fetch WD14 tags: ${error.stack}`);
-    });
+    })).json();
+    if (json.tags != "") {
+        loraInput.value = json.tags + "\n\n" + loraInput.value;
+    }
 }
 
 function clearLoraInput() {
@@ -735,10 +710,7 @@ function toggleView() {
     } else {
         document.body.style.backgroundImage = "none";
         document.getElementById("loraPreview").src = "";
-        elem = document.querySelectorAll('.FlipStreamPreviewBox');
-        elem.forEach(x => {
-            x.src = "";
-        });
+        document.querySelectorAll('.FlipStreamPreviewBox').forEach(x => x.src = "");
         leftPanel.style.visibility = "visible";
         rightPanel.style.visibility = "visible";
         presetLeftPanel.style.visibility = "visible";
@@ -754,10 +726,7 @@ function hideView() {
     const presetRightPanel = document.getElementById("presetRightPanel");
     closeCaptureDialog();
     document.body.style.backgroundImage = "none";
-    elem = document.querySelectorAll('.FlipStreamPreviewBox');
-    elem.forEach(x => {
-        x.src = "";
-    });
+    document.querySelectorAll('.FlipStreamPreviewBox').forEach(x => x.src = "");
     leftPanel.style.visibility = "hidden";
     rightPanel.style.visibility = "hidden";
     presetLeftPanel.style.visibility = "hidden";
@@ -766,34 +735,24 @@ function hideView() {
 }
 setTimeout(hideView, 300 * 1000);
 
-function refreshStatus() {
-    const refresh = document.getElementById("refreshCheckbox").checked;
-    if (!refresh) {
-        return;
+async function refreshView() {
+    document.getElementById("statusInfo").innerText = await fetch("/flipstreamviewer/get_status")
+        .then(response => response.text())
+        .catch(() => "Fails to get status.");
+
+    if (document.body.style.backgroundImage != "none") {
+        const mtime = await (await fetch("/flipstreamviewer/stream_mtime")).text();
+        document.body.style.backgroundImage = `url('/flipstreamviewer/stream?mtime=${mtime}')`;
     }
 
-    fetch("/flipstreamviewer/get_status").then(response => {
-        if (response.ok) {
-            response.json().then(json => {
-                document.getElementById("frameUpdatingInfo").innerText = json.frameUpdatingInfo;
-                document.getElementById("runningInfo").innerText = json.runningInfo;
-                document.getElementById("statusInfo").innerText = json.statusInfo;
-                document.getElementById("errorMessage").innerText = json.errorMessage;
-            });
-        } else {
-            document.getElementById("frameUpdatingInfo").innerText = "";
-            document.getElementById("runningInfo").innerText = "";
-            document.getElementById("statusInfo").innerText = "";
-            document.getElementById("errorMessage").innerText = "Failed to refresh status.";
+    document.querySelectorAll('.FlipStreamPreviewBox').forEach(async x => {
+        if (x.src != "") {
+            const mtime = await (await fetch(`/flipstreamviewer/preview_mtime?label=${x.name}`)).text();
+            x.src = `/flipstreamviewer/preview?label=${x.name}&mtime=${mtime}`;
         }
-    }).catch(error => {
-        document.getElementById("frameUpdatingInfo").innerText = "";
-        document.getElementById("runningInfo").innerText = "";
-        document.getElementById("statusInfo").innerText = "";
-        document.getElementById("errorMessage").innerText = "An error occurred while refresh status.";
     });
 }
-setInterval(refreshStatus, 1000);
+setInterval(refreshView, 1000);
 """
 
 SCRIPT_CAPTURE=r"""
@@ -846,22 +805,14 @@ function resetPos() {
     updateCanvas();
 }
 
-function setFrame() {
+async function setFrame() {
     const canvas = document.getElementById("canvas");
-    const dataURL = canvas.toDataURL("image/webp");
-    fetch("/flipstreamviewer/set_frame", {
+    await fetch("/flipstreamviewer/set_frame", {
         method: "POST",
-        body: JSON.stringify([dataURL]),
-        headers: { "Content-Type": "application/json" }
-    }).then(response => {
-        if (response.ok) {
-            closeCaptureDialog();
-        } else {
-            alert("Failed to set frame.");
-        }
-    }).catch(error => {
-        alert("An error occurred while set frame.");
+        body: canvas.toDataURL("image/png"),
+        headers: { "Content-Type": "image/png" }
     });
+    closeCaptureDialog();
 }
 """
 
@@ -906,47 +857,49 @@ function parseQueryParam() {
 parseQueryParam();
 """
 
-@server.PromptServer.instance.routes.get("/flipstreamviewer/preview")
-async def stream(request):
-    if request.remote not in allowed_ips:
-        raise HTTPForbidden()
-
-    response = web.StreamResponse()
-    response.content_type = "multipart/x-mixed-replace; boundary=frame"
-    await response.prepare(request)
-    
-    label = request.rel_url.query.get('label', '')
-    key = label + "PreviewBox"
-    while request.transport and not request.transport.is_closing():
-        if key in state:
-            await response.write(b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + state[key] + b"\r\n")
-        await asyncio.sleep(1)
-    return response
-
-
 @server.PromptServer.instance.routes.get("/flipstreamviewer/stream")
 async def stream(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
 
-    response = web.StreamResponse()
-    response.content_type = "multipart/x-mixed-replace; boundary=frame"
-    await response.prepare(request)
-    
-    global frame_index
-    last_time = time.time()
-    while request.transport and not request.transport.is_closing():
-        if frame_buffer:
-            if frame_index >= len(frame_buffer):
-                frame_index = 0
-            frame = frame_buffer[frame_index]
-            frame_index += 1
-            await response.write(b"--frame\r\nContent-Type: image/webp\r\n\r\n" + frame + b"\r\n")
-            await asyncio.sleep(max(0, (1 / frame_fps) - (time.time() - last_time)))
-            last_time = time.time()
-        else:
-            await asyncio.sleep(0.1)
-    return response
+    return web.Response(body=frame_buffer, headers={"Content-Type": "image/apng"})
+
+
+@server.PromptServer.instance.routes.get("/flipstreamviewer/stream_mtime")
+async def stream_mtime(request):
+    if request.remote not in allowed_ips:
+        raise HTTPForbidden()
+
+    return web.Response(text=str(frame_mtime))
+
+
+@server.PromptServer.instance.routes.get("/flipstreamviewer/preview")
+async def preview(request):
+    if request.remote not in allowed_ips:
+        raise HTTPForbidden()
+
+    label = request.rel_url.query.get('label', '')
+    key = label + "PreviewBox"
+    if key in state:
+        data = state[key][1]
+    else:
+        data = b""
+    return web.Response(body=data, headers={"Content-Type": "image/png"})
+
+
+@server.PromptServer.instance.routes.get("/flipstreamviewer/preview_mtime")
+async def preview_mtime(request):
+    if request.remote not in allowed_ips:
+        raise HTTPForbidden()
+
+    label = request.rel_url.query.get('label', '')
+    key = label + "PreviewBox"
+    if key in state:
+        data = state[key][0]
+    else:
+        data = 0
+
+    return web.Response(text=str(data))
 
 
 @server.PromptServer.instance.routes.get("/flipstreamviewer")
@@ -1089,11 +1042,10 @@ async def viewer(request):
         if (label + "PreviewBox") in state:
             block[f"{title}_{label}"] = f"""
             <div class="row" style="color: lightslategray;">
-                <img class="FlipStreamPreviewBox" id="{label}PreviewBox" src="/flipstreamviewer/preview?label={label}" alt onerror="this.onerror = null; this.src='';" />
+                <img class="FlipStreamPreviewBox" id="{label}PreviewBox" name="{label}" src="/flipstreamviewer/preview?label={label}" alt onerror="this.onerror = null; this.src='';" />
             </div>"""
     
-    q = server.PromptServer.instance.prompt_queue
-    hist = q.get_history(max_items=1)
+    hist = server.PromptServer.instance.prompt_queue.get_history(max_items=1)
     nodedict = next(iter(hist.values()))["prompt"][2] if hist else None
     if nodedict:
         for node in nodedict.values():
@@ -1128,15 +1080,7 @@ async def viewer(request):
         </div>
         <div id="rightPanel">
             <div class="row"><i>Status</i></div>
-            <div class="row">
-                <input id="refreshCheckbox" type="checkbox">refresh</input>
-            </div>
-            <div class="row">
-                <div id="frameUpdatingInfo"></div>:
-                <div id="runningInfo"></div>:
-                <div id="statusInfo"></div>:
-                <div id="errorMessage"></div>
-            </div>
+            <div id="statusInfo"></div>
             <div class="row"><i>Darker</i></div>
             <div class="row">
                 <input id="darkerRange" type="range" min="0" max="1" step="0.01" value="{state["darker"]}" oninput="onInputDarker(this.value);" />
@@ -1304,12 +1248,7 @@ async def viewer(request):
                 <button onclick="closePresetDialog()">Close</button>
             </div>
             <div class="row"><i>Status</i></div>
-            <div class="row">
-                <label id="frameUpdatingInfo"></label>:
-                <label id="runningInfo"></label>:
-                <label id="statusInfo"></label>:
-                <label id="errorMessage"></label>
-            </div>
+            <div id="statusInfo"></div>
             <div class="row"><i>Darker</i></div>
             <div class="row">
                 <input id="darkerRange" type="range" min="0" max="1" step="0.01" value="{state["darker"]}" oninput="onInputDarker(this.value);" />
@@ -1340,22 +1279,18 @@ async def get_status(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
 
-    q = server.PromptServer.instance.prompt_queue
-    hist = q.get_history(max_items=1)
+    remain = server.PromptServer.instance.prompt_queue.get_tasks_remaining()
+    hist = server.PromptServer.instance.prompt_queue.get_history(max_items=1)
+    status = []
+    if frame_updating:
+        status.append("updating")
+    status.append(f"q{remain}")
     info = next(iter(hist.values()))["status"] if hist else None
-    running = q.get_tasks_remaining()
-    status = {
-        "frameUpdatingInfo": "updating" if frame_updating else "",
-        "runningInfo": f"q{running}",
-        "statusInfo": "",
-        "errorMessage": ""
-    }
     if info:
         errinfo = info["messages"][2][1]
-        errmsg = ":".join(errinfo.get(key, "") for key in ["node_id", "node_type", "exception_message", "exception_type"])
-        errmsg = "" if errmsg == ":::" else errmsg
-        status.update({"statusInfo": info["status_str"], "errorMessage": errmsg})
-    return web.json_response(status)
+        status.append(info["status_str"])
+        status += [errinfo.get(key, "") for key in ["node_id", "node_type", "exception_message", "exception_type"]]
+    return web.Response(text=":".join(status))
 
 
 @server.PromptServer.instance.routes.post("/flipstreamviewer/update_param")
@@ -1368,7 +1303,7 @@ async def update_param(request):
     param.update(prm)
     param.update(setparam)
     setparam.clear()
-    return web.Response(status=200)
+    return web.Response()
 
 
 @server.PromptServer.instance.routes.post("/flipstreamviewer/get_lorainfo")
@@ -1413,23 +1348,25 @@ async def get_wd14tag(request):
     stt = await request.json()
     state.update(stt);
     tags = []
-    if frame_buffer:
-        with BytesIO(frame_buffer[0]) as buf:
-            image = Image.open(buf)
-            tags = await wd14tagger.tag(image, "wd-v1-4-moat-tagger-v2.onnx", state["wd14th"], state["wd14cth"], exclude_tags)
+    if frame_buffer is not None:
+        tags = await wd14tagger.tag(Image.fromarray(iio.imread(frame_buffer, index=0)), "wd-v1-4-moat-tagger-v2.onnx", state["wd14th"], state["wd14cth"], exclude_tags)
     return web.json_response({"tags": tags})
 
 
 @server.PromptServer.instance.routes.post("/flipstreamviewer/set_frame")
 async def set_frame(request):
-    global frame_buffer
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
     
-    dataURL, = await request.json()
-    _, data = dataURL.split(",", 1)
-    frame_buffer = [base64.b64decode(data)]
-    return web.Response(status=200)
+    global frame_buffer
+    global frame_mtime
+    pngdata = base64.b64decode((await request.text()).split(',', 1)[1])
+    with BytesIO(pngdata) as data:
+        with BytesIO() as output:
+            iio.imwrite(output, [iio.imread(data)], format="png", compression=STREAM_COMPRESSION)
+            frame_buffer = output.getvalue()
+            frame_mtime = time.time()
+    return web.Response()
 
 
 @server.PromptServer.instance.routes.post("/flipstreamviewer/move_file")
@@ -1443,7 +1380,7 @@ async def move_file(request):
     pathTo = Path(folder_path, mode, moveTo, pathFrom.name)
     Path(pathFrom).rename(pathTo)
     state[label + "Folder"] = moveTo
-    return web.Response(status=200)
+    return web.Response()
 
 
 @server.PromptServer.instance.routes.post("/flipstreamviewer/move_presetfile")
@@ -1457,7 +1394,7 @@ async def move_presetfile(request):
     pathTo = Path("preset", moveTo, pathFrom.name)
     Path(pathFrom).rename(pathTo)
     state["presetFolder"] = moveTo
-    return web.Response(status=200)
+    return web.Response()
 
 
 @server.PromptServer.instance.routes.post("/flipstreamviewer/move_lorafile")
@@ -1471,7 +1408,7 @@ async def move_lorafile(request):
     pathTo = Path("ComfyUI/models/loras", param["loramode"], moveTo, pathFrom.name)
     Path(pathFrom).rename(pathTo)
     state["loraFolder"] = moveTo
-    return web.Response(status=200)
+    return web.Response()
 
 
 @server.PromptServer.instance.routes.post("/flipstreamviewer/load_preset")
@@ -1505,7 +1442,7 @@ async def save_preset(request):
     param.update(data)
     with open(Path("preset", state["presetFolder"], state["presetTitle"] + ".json"), "w") as file:
         json.dump(data, file)
-    return web.Response(status=200)
+    return web.Response()
 
 
 class FlipStreamSection:
@@ -1773,12 +1710,12 @@ class FlipStreamPreviewBox:
     CATEGORY = "FlipStreamViewer"
 
     def run(self, label, tensor, **kwargs):
-        image = Image.fromarray(np.clip(255. * tensor[0,:,:,:].cpu().numpy().squeeze(), 0, 255).astype(np.uint8))
+        buf = np.array(tensor[0].cpu().numpy() * 255, dtype=np.uint8)
+        image = Image.fromarray(buf)
         image.thumbnail((256, 256))
-        if image.mode in ("RGBA", "P"): image = image.convert("RGB")
-        with BytesIO() as image_bytes:
-            image.save(image_bytes, format="JPEG")
-            state[label + "PreviewBox"] = image_bytes.getvalue()
+        with BytesIO() as output:
+            iio.imwrite(output, np.array(image), format="png", compression=STREAM_COMPRESSION)
+            state[label + "PreviewBox"] = (time.time(), output.getvalue())
         return ()
 
 
@@ -1918,7 +1855,7 @@ class FlipStreamScreenGrabber:
     def grabber(self, area, frames, fps):
         with mss.mss() as sct:
             while True:
-                self.grabbed_frames.append(sct.grab(area))
+                self.grabbed_frames.append(sct.grab(area))  # BGRA format
                 self.grabbed_frames = self.grabbed_frames[-frames:]
                 time.sleep(1 / fps)
                 if self.flag_stop_grabber:
@@ -2303,22 +2240,13 @@ class FlipStreamViewer:
     def run(self, tensor, fps, **kwargs):
         global frame_updating
         global frame_buffer
-        global frame_fps
-        tensor_np = 255. * tensor.cpu().numpy()
-        tensor_np_list = [(tensor_np[i]) for i in range(tensor.shape[0])]
-        buffer = []
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            def process_frame(tensor_np_i):
-                frame = np.clip(tensor_np_i, 0, 255).astype(np.uint8)
-                image = Image.fromarray(frame.squeeze())
-                with BytesIO() as image_bytes:
-                    image.save(image_bytes, format="WEBP", quality=100)
-                    return image_bytes.getvalue()
-            buffer = list(executor.map(process_frame, tensor_np_list))
-        buffer += buffer[::-1]
+        global frame_mtime
+        buf = np.array(tensor.cpu().numpy() * 255, dtype=np.uint8)
+        with BytesIO() as output:
+            iio.imwrite(output, list(buf) + list(buf[::-1]), format='png', compression=STREAM_COMPRESSION, fps=fps)
+            frame_buffer = output.getvalue()
+            frame_mtime = time.time()
         frame_updating = False
-        frame_buffer = buffer
-        frame_fps = fps
         return ()
 
 
