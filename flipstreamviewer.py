@@ -55,7 +55,7 @@ def btoa(value):
 def atob(value):
     return base64.b64decode(value.encode()).decode("latin-1")
 
-STREAM_COMPRESSION = 1
+STREAM_COMPRESSION = 0
 allowed_ips = ["127.0.0.1"]
 setparam = {}
 param = {"loramode": "", "lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
@@ -1894,6 +1894,35 @@ class FlipStreamScreenGrabber:
         return (image, enable)
 
 
+class FlipStreamVideoInput:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "path": ("STRING", {"default": ""}),
+                "first": ("INT", {"default": 0, "min": 0}),
+                "step": ("INT", {"default": 1, "min": 1}),
+                "frames": ("INT", {"default": 1, "min": 1}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE", "BOOLEAN")
+    RETURN_NAMES = ("image", "enable")
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, path, first, step, frames):
+        if not path or not Path(path).is_file():
+            return (None, False)
+
+        with iio.imopen(path, "r") as file:
+            buf = [file.read(index=i) for i in range(first, first+(frames-1)*step+1, step)]
+        buf = np.stack(buf).astype(np.float32) / 255
+        enable = buf.shape[0] == frames
+        image = torch.from_numpy(buf) if enable else None
+        return (image, enable)
+
+
 class FlipStreamSource:
     @classmethod
     def INPUT_TYPES(s):
@@ -2270,6 +2299,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamImageSize": FlipStreamImageSize,
     "FlipStreamTextReplace": FlipStreamTextReplace,
     "FlipStreamScreenGrabber": FlipStreamScreenGrabber,
+    "FlipStreamVideoInput": FlipStreamVideoInput,
     "FlipStreamSource": FlipStreamSource,
     "FlipStreamSwitchImage": FlipStreamSwitchImage,
     "FlipStreamSwitchLatent": FlipStreamSwitchLatent,
@@ -2300,6 +2330,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamImageSize": "FlipStreamImageSize",
     "FlipStreamTextReplace": "FlipStreamTextReplace",
     "FlipStreamScreenGrabber": "FlipStreamScreenGrabber",
+    "FlipStreamVideoInput": "FlipStreamVideoInput",
     "FlipStreamSource": "FlipStreamSource",
     "FlipStreamSwitchImage": "FlipStreamSwitchImage",
     "FlipStreamSwitchLatent": "FlipStreamSwitchLatent",
