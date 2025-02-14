@@ -1,6 +1,6 @@
 {
-  "last_node_id": 67,
-  "last_link_id": 128,
+  "last_node_id": 68,
+  "last_link_id": 131,
   "nodes": [
     {
       "id": 26,
@@ -267,7 +267,7 @@
         302
       ],
       "flags": {},
-      "order": 29,
+      "order": 28,
       "mode": 0,
       "inputs": [
         {
@@ -330,7 +330,7 @@
       },
       "widgets_values": [
         "enable",
-        252278102229080,
+        563713513127162,
         "randomize",
         20,
         1,
@@ -871,7 +871,7 @@
         46
       ],
       "flags": {},
-      "order": 30,
+      "order": 29,
       "mode": 0,
       "inputs": [
         {
@@ -912,7 +912,7 @@
         82
       ],
       "flags": {},
-      "order": 31,
+      "order": 30,
       "mode": 0,
       "inputs": [
         {
@@ -951,7 +951,7 @@
         130
       ],
       "flags": {},
-      "order": 32,
+      "order": 31,
       "mode": 0,
       "inputs": [
         {
@@ -1219,258 +1219,6 @@
       ]
     },
     {
-      "id": 62,
-      "type": "VHS_LoadVideoPath",
-      "pos": [
-        1443.31005859375,
-        498.1907958984375
-      ],
-      "size": [
-        231.8896484375,
-        238
-      ],
-      "flags": {},
-      "order": 22,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "meta_batch",
-          "type": "VHS_BatchManager",
-          "link": null,
-          "shape": 7
-        },
-        {
-          "name": "vae",
-          "type": "VAE",
-          "link": null,
-          "shape": 7
-        },
-        {
-          "name": "video",
-          "type": "STRING",
-          "link": 117,
-          "widget": {
-            "name": "video"
-          }
-        },
-        {
-          "name": "frame_load_cap",
-          "type": "INT",
-          "link": 126,
-          "widget": {
-            "name": "frame_load_cap"
-          }
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            118
-          ],
-          "slot_index": 0
-        },
-        {
-          "name": "frame_count",
-          "type": "INT",
-          "links": null
-        },
-        {
-          "name": "audio",
-          "type": "AUDIO",
-          "links": null
-        },
-        {
-          "name": "video_info",
-          "type": "VHS_VIDEOINFO",
-          "links": null
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "VHS_LoadVideoPath"
-      },
-      "widgets_values": {
-        "video": "",
-        "force_rate": 8,
-        "custom_width": 0,
-        "custom_height": 0,
-        "frame_load_cap": 8,
-        "skip_first_frames": 0,
-        "select_every_nth": 1,
-        "format": "AnimateDiff",
-        "videopreview": {
-          "hidden": false,
-          "paused": false,
-          "params": {
-            "filename": "",
-            "type": "path",
-            "format": "video/",
-            "force_rate": 8,
-            "custom_width": 0,
-            "custom_height": 0,
-            "frame_load_cap": 8,
-            "skip_first_frames": 0,
-            "select_every_nth": 1
-          }
-        }
-      }
-    },
-    {
-      "id": 63,
-      "type": "ImpactControlBridge",
-      "pos": [
-        1199.62841796875,
-        538.4775390625
-      ],
-      "size": [
-        210,
-        78
-      ],
-      "flags": {},
-      "order": 19,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "value",
-          "type": "STRING",
-          "link": 124
-        },
-        {
-          "name": "mode",
-          "type": "BOOLEAN",
-          "link": 125,
-          "widget": {
-            "name": "mode"
-          }
-        }
-      ],
-      "outputs": [
-        {
-          "name": "value",
-          "type": "STRING",
-          "links": [
-            117
-          ],
-          "slot_index": 0,
-          "label": "STRING"
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "ImpactControlBridge"
-      },
-      "widgets_values": [
-        true,
-        "Bypass"
-      ]
-    },
-    {
-      "id": 65,
-      "type": "FlipStreamFileSelect_Input",
-      "pos": [
-        929.029052734375,
-        517.6051025390625
-      ],
-      "size": [
-        237.9093017578125,
-        266
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 10,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "file",
-          "type": "*",
-          "links": null
-        },
-        {
-          "name": "path",
-          "type": "*",
-          "links": [
-            124
-          ],
-          "slot_index": 1
-        },
-        {
-          "name": "enable",
-          "type": "BOOLEAN",
-          "links": [
-            125
-          ],
-          "slot_index": 2
-        }
-      ],
-      "title": "15.input",
-      "properties": {
-        "Node name for S&R": "FlipStreamFileSelect_Input"
-      },
-      "widgets_values": [
-        "input",
-        "",
-        "input",
-        "ComfyUI\\input",
-        "",
-        false,
-        true,
-        true
-      ]
-    },
-    {
-      "id": 32,
-      "type": "FlipStreamSlider",
-      "pos": [
-        1711.809326171875,
-        797.1196899414062
-      ],
-      "size": [
-        210,
-        194
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 11,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "FLOAT",
-          "type": "FLOAT",
-          "links": null
-        },
-        {
-          "name": "INT",
-          "type": "INT",
-          "links": [
-            42,
-            123,
-            126
-          ],
-          "slot_index": 1
-        },
-        {
-          "name": "BOOLEAN",
-          "type": "BOOLEAN",
-          "links": null
-        }
-      ],
-      "title": "14.frames",
-      "properties": {
-        "Node name for S&R": "FlipStreamSlider"
-      },
-      "widgets_values": [
-        "frames",
-        8,
-        8,
-        24,
-        8
-      ]
-    },
-    {
       "id": 64,
       "type": "FlipStreamSource",
       "pos": [
@@ -1482,13 +1230,13 @@
         114
       ],
       "flags": {},
-      "order": 24,
+      "order": 22,
       "mode": 0,
       "inputs": [
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 118,
+          "link": 130,
           "shape": 7
         },
         {
@@ -1563,7 +1311,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 28,
+      "order": 24,
       "mode": 0,
       "inputs": [
         {
@@ -1595,7 +1343,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 12,
+      "order": 10,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1644,7 +1392,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 13,
+      "order": 11,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1691,7 +1439,7 @@
         200.3873748779297
       ],
       "flags": {},
-      "order": 14,
+      "order": 12,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -1701,6 +1449,167 @@
       ],
       "color": "#432",
       "bgcolor": "#653"
+    },
+    {
+      "id": 32,
+      "type": "FlipStreamSlider",
+      "pos": [
+        1711.809326171875,
+        797.1196899414062
+      ],
+      "size": [
+        210,
+        194
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 13,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            42,
+            123,
+            131
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "BOOLEAN",
+          "type": "BOOLEAN",
+          "links": null
+        }
+      ],
+      "title": "14.frames",
+      "properties": {
+        "Node name for S&R": "FlipStreamSlider"
+      },
+      "widgets_values": [
+        "frames",
+        8,
+        8,
+        24,
+        8
+      ]
+    },
+    {
+      "id": 68,
+      "type": "FlipStreamVideoInput",
+      "pos": [
+        1404.503662109375,
+        513.1790771484375
+      ],
+      "size": [
+        210,
+        102
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "path",
+          "type": "STRING",
+          "link": 129,
+          "widget": {
+            "name": "path"
+          }
+        },
+        {
+          "name": "frames",
+          "type": "INT",
+          "link": 131,
+          "widget": {
+            "name": "frames"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            130
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "enable",
+          "type": "BOOLEAN",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "FlipStreamVideoInput"
+      },
+      "widgets_values": [
+        "",
+        0,
+        3,
+        1
+      ]
+    },
+    {
+      "id": 65,
+      "type": "FlipStreamFileSelect_Input",
+      "pos": [
+        1254.388916015625,
+        546.2809448242188
+      ],
+      "size": [
+        237.9093017578125,
+        266
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 14,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "file",
+          "type": "*",
+          "links": null
+        },
+        {
+          "name": "path",
+          "type": "*",
+          "links": [
+            129
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "enable",
+          "type": "BOOLEAN",
+          "links": [],
+          "slot_index": 2
+        }
+      ],
+      "title": "15.input",
+      "properties": {
+        "Node name for S&R": "FlipStreamFileSelect_Input"
+      },
+      "widgets_values": [
+        "input",
+        "",
+        "input",
+        "ComfyUI\\input",
+        "",
+        false,
+        true,
+        true
+      ]
     }
   ],
   "links": [
@@ -1937,22 +1846,6 @@
       "IMAGE"
     ],
     [
-      117,
-      63,
-      0,
-      62,
-      2,
-      "STRING"
-    ],
-    [
-      118,
-      62,
-      0,
-      64,
-      0,
-      "IMAGE"
-    ],
-    [
       119,
       64,
       1,
@@ -1993,30 +1886,6 @@
       "INT"
     ],
     [
-      124,
-      65,
-      1,
-      63,
-      0,
-      "STRING"
-    ],
-    [
-      125,
-      65,
-      2,
-      63,
-      1,
-      "BOOLEAN"
-    ],
-    [
-      126,
-      32,
-      1,
-      62,
-      3,
-      "INT"
-    ],
-    [
       127,
       64,
       0,
@@ -2031,25 +1900,47 @@
       39,
       6,
       "INT"
+    ],
+    [
+      129,
+      65,
+      1,
+      68,
+      0,
+      "STRING"
+    ],
+    [
+      130,
+      68,
+      0,
+      64,
+      0,
+      "IMAGE"
+    ],
+    [
+      131,
+      32,
+      1,
+      68,
+      1,
+      "INT"
     ]
   ],
   "groups": [],
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.6592783225746375,
+      "scale": 1.08802579313581,
       "offset": [
-        -831.9544088713585,
-        208.34026153252205
+        -857.8204998699725,
+        -52.24686489922112
       ]
     },
     "node_versions": {
-      "ComfyUI_FlipStreamViewer": "c727b903bb52c60932d2cd2b3841c6248d25854c",
+      "comfyui_flipstreamviewer": "3837719be12d9a79128a7a9e1395320da5f14947",
       "comfyui-animatediff-evolved": "94eb45621c7e5a5286968b3938b1b7689d34ced0",
       "comfy-core": "0.3.14",
-      "comfyui_lora_tag_loader": "c1e1a061d42384e06ff6c547c4a00aef7cc96e59",
-      "comfyui-videohelpersuite": "8629188458dc6cb832f871ece3bd273507e8a766",
-      "comfyui-impact-pack": "1ae7cae2df8cca06027edfa3a24512671239d6c4"
+      "comfyui_lora_tag_loader": "c1e1a061d42384e06ff6c547c4a00aef7cc96e59"
     },
     "VHS_latentpreview": false,
     "VHS_latentpreviewrate": 0,
