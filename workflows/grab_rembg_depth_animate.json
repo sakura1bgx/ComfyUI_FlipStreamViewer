@@ -1,6 +1,6 @@
 {
-  "last_node_id": 97,
-  "last_link_id": 175,
+  "last_node_id": 99,
+  "last_link_id": 179,
   "nodes": [
     {
       "id": 21,
@@ -67,7 +67,7 @@
         82
       ],
       "flags": {},
-      "order": 53,
+      "order": 52,
       "mode": 0,
       "inputs": [
         {
@@ -106,7 +106,7 @@
         130
       ],
       "flags": {},
-      "order": 54,
+      "order": 53,
       "mode": 0,
       "inputs": [
         {
@@ -501,7 +501,7 @@
         46
       ],
       "flags": {},
-      "order": 51,
+      "order": 50,
       "mode": 0,
       "inputs": [
         {
@@ -591,7 +591,7 @@
         74
       ],
       "flags": {},
-      "order": 52,
+      "order": 51,
       "mode": 4,
       "inputs": [
         {
@@ -752,7 +752,7 @@
         186
       ],
       "flags": {},
-      "order": 48,
+      "order": 47,
       "mode": 0,
       "inputs": [
         {
@@ -1226,7 +1226,7 @@
         302
       ],
       "flags": {},
-      "order": 50,
+      "order": 49,
       "mode": 0,
       "inputs": [
         {
@@ -1281,7 +1281,7 @@
       },
       "widgets_values": [
         "enable",
-        126339181416491,
+        50787005682633,
         "randomize",
         20,
         1,
@@ -1895,45 +1895,6 @@
       ]
     },
     {
-      "id": 66,
-      "type": "FlipStreamSection",
-      "pos": [
-        652.723388671875,
-        949.7792358398438
-      ],
-      "size": [
-        210,
-        58
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 32,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "hook",
-          "type": "*",
-          "link": 160,
-          "shape": 7
-        }
-      ],
-      "outputs": [
-        {
-          "name": "*",
-          "type": "*",
-          "links": null
-        }
-      ],
-      "title": "20.Source",
-      "properties": {
-        "Node name for S&R": "FlipStreamSection"
-      },
-      "widgets_values": [
-        "Source"
-      ]
-    },
-    {
       "id": 77,
       "type": "VHS_VideoCombine",
       "pos": [
@@ -2009,55 +1970,6 @@
       }
     },
     {
-      "id": 13,
-      "type": "FlipStreamSlider",
-      "pos": [
-        708.4448852539062,
-        1002.5443725585938
-      ],
-      "size": [
-        210,
-        194
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 17,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "FLOAT",
-          "type": "FLOAT",
-          "links": null
-        },
-        {
-          "name": "INT",
-          "type": "INT",
-          "links": [
-            121
-          ],
-          "slot_index": 1
-        },
-        {
-          "name": "BOOLEAN",
-          "type": "BOOLEAN",
-          "links": null
-        }
-      ],
-      "title": "21.width",
-      "properties": {
-        "Node name for S&R": "FlipStreamSlider"
-      },
-      "widgets_values": [
-        "width",
-        768,
-        256,
-        2048,
-        32
-      ]
-    },
-    {
       "id": 14,
       "type": "FlipStreamSlider",
       "pos": [
@@ -2071,7 +1983,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 18,
+      "order": 17,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -2107,277 +2019,24 @@
       ]
     },
     {
-      "id": 32,
-      "type": "FlipStreamSlider",
-      "pos": [
-        703.9859619140625,
-        1115.26318359375
-      ],
-      "size": [
-        210,
-        194
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 19,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "FLOAT",
-          "type": "FLOAT",
-          "links": null
-        },
-        {
-          "name": "INT",
-          "type": "INT",
-          "links": [
-            42,
-            123,
-            124
-          ],
-          "slot_index": 1
-        },
-        {
-          "name": "BOOLEAN",
-          "type": "BOOLEAN",
-          "links": null
-        }
-      ],
-      "title": "23.frames",
-      "properties": {
-        "Node name for S&R": "FlipStreamSlider"
-      },
-      "widgets_values": [
-        "frames",
-        8,
-        8,
-        24,
-        8
-      ]
-    },
-    {
-      "id": 90,
-      "type": "FlipStreamFileSelect_Output",
-      "pos": [
-        704.6945190429688,
-        1170.5045166015625
-      ],
-      "size": [
-        210,
-        266
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 20,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "file",
-          "type": "*",
-          "links": null
-        },
-        {
-          "name": "path",
-          "type": "*",
-          "links": [
-            157,
-            160
-          ],
-          "slot_index": 1
-        },
-        {
-          "name": "enable",
-          "type": "BOOLEAN",
-          "links": [
-            158
-          ],
-          "slot_index": 2
-        }
-      ],
-      "title": "24.source",
-      "properties": {
-        "Node name for S&R": "FlipStreamFileSelect_Output"
-      },
-      "widgets_values": [
-        "source",
-        "",
-        "output",
-        "ComfyUI\\output",
-        "",
-        false,
-        true,
-        true
-      ]
-    },
-    {
-      "id": 68,
-      "type": "ImpactControlBridge",
-      "pos": [
-        897.7296752929688,
-        957.0828857421875
-      ],
-      "size": [
-        210,
-        78
-      ],
-      "flags": {},
-      "order": 33,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "value",
-          "type": "STRING",
-          "link": 157
-        },
-        {
-          "name": "mode",
-          "type": "BOOLEAN",
-          "link": 158,
-          "widget": {
-            "name": "mode"
-          }
-        }
-      ],
-      "outputs": [
-        {
-          "name": "value",
-          "type": "STRING",
-          "links": [
-            129
-          ],
-          "slot_index": 0,
-          "label": "STRING"
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "ImpactControlBridge"
-      },
-      "widgets_values": [
-        true,
-        "Bypass"
-      ]
-    },
-    {
-      "id": 62,
-      "type": "VHS_LoadVideoPath",
-      "pos": [
-        1141.4111328125,
-        951.986083984375
-      ],
-      "size": [
-        231.8896484375,
-        238
-      ],
-      "flags": {},
-      "order": 37,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "meta_batch",
-          "type": "VHS_BatchManager",
-          "link": null,
-          "shape": 7
-        },
-        {
-          "name": "vae",
-          "type": "VAE",
-          "link": null,
-          "shape": 7
-        },
-        {
-          "name": "video",
-          "type": "STRING",
-          "link": 129,
-          "widget": {
-            "name": "video"
-          }
-        },
-        {
-          "name": "frame_load_cap",
-          "type": "INT",
-          "link": 124,
-          "widget": {
-            "name": "frame_load_cap"
-          }
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            167
-          ],
-          "slot_index": 0
-        },
-        {
-          "name": "frame_count",
-          "type": "INT",
-          "links": null
-        },
-        {
-          "name": "audio",
-          "type": "AUDIO",
-          "links": null
-        },
-        {
-          "name": "video_info",
-          "type": "VHS_VIDEOINFO",
-          "links": null
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "VHS_LoadVideoPath"
-      },
-      "widgets_values": {
-        "video": "",
-        "force_rate": 8,
-        "custom_width": 0,
-        "custom_height": 0,
-        "frame_load_cap": 8,
-        "skip_first_frames": 0,
-        "select_every_nth": 1,
-        "format": "AnimateDiff",
-        "videopreview": {
-          "hidden": false,
-          "paused": false,
-          "params": {
-            "filename": "",
-            "type": "path",
-            "format": "video/",
-            "force_rate": 8,
-            "custom_width": 0,
-            "custom_height": 0,
-            "frame_load_cap": 8,
-            "skip_first_frames": 0,
-            "select_every_nth": 1
-          }
-        }
-      }
-    },
-    {
       "id": 64,
       "type": "FlipStreamSource",
       "pos": [
-        1410.3553466796875,
-        950.7717895507812
+        1131.4171142578125,
+        957.3504638671875
       ],
       "size": [
         210,
         114
       ],
       "flags": {},
-      "order": 40,
+      "order": 37,
       "mode": 0,
       "inputs": [
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 167,
+          "link": 178,
           "shape": 7
         },
         {
@@ -2442,15 +2101,15 @@
       "id": 93,
       "type": "ImpactControlBridge",
       "pos": [
-        1658.464599609375,
-        949.6570434570312
+        1379.5263671875,
+        956.2357177734375
       ],
       "size": [
         210,
         78
       ],
       "flags": {},
-      "order": 44,
+      "order": 40,
       "mode": 0,
       "inputs": [
         {
@@ -2490,8 +2149,8 @@
       "id": 91,
       "type": "FlipStreamRembg",
       "pos": [
-        1904.7938232421875,
-        949.6563720703125
+        1625.8555908203125,
+        956.2350463867188
       ],
       "size": [
         140,
@@ -2500,8 +2159,8 @@
       "flags": {
         "collapsed": false
       },
-      "order": 45,
-      "mode": 0,
+      "order": 44,
+      "mode": 4,
       "inputs": [
         {
           "name": "image",
@@ -2533,15 +2192,15 @@
       "id": 96,
       "type": "ImpactControlBridge",
       "pos": [
-        2091.6650390625,
-        947.5335693359375
+        1812.7269287109375,
+        954.1122436523438
       ],
       "size": [
         210,
         82
       ],
       "flags": {},
-      "order": 46,
+      "order": 45,
       "mode": 0,
       "inputs": [
         {
@@ -2581,15 +2240,15 @@
       "id": 94,
       "type": "DownloadAndLoadDepthAnythingV2Model",
       "pos": [
-        2337.994384765625,
-        1051.89013671875
+        2059.056884765625,
+        1058.4688720703125
       ],
       "size": [
         294,
         58
       ],
       "flags": {},
-      "order": 21,
+      "order": 18,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -2623,7 +2282,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 22,
+      "order": 19,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -2672,7 +2331,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 23,
+      "order": 20,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -2711,16 +2370,16 @@
       "id": 95,
       "type": "DepthAnything_V2",
       "pos": [
-        2335.568603515625,
-        948.746826171875
+        2056.631103515625,
+        955.3255004882812
       ],
       "size": [
         214.20001220703125,
         46
       ],
       "flags": {},
-      "order": 47,
-      "mode": 0,
+      "order": 46,
+      "mode": 4,
       "inputs": [
         {
           "name": "da_model",
@@ -2763,7 +2422,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 49,
+      "order": 48,
       "mode": 0,
       "inputs": [
         {
@@ -2793,7 +2452,7 @@
         292.80987548828125
       ],
       "flags": {},
-      "order": 24,
+      "order": 21,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -2803,6 +2462,255 @@
       ],
       "color": "#432",
       "bgcolor": "#653"
+    },
+    {
+      "id": 32,
+      "type": "FlipStreamSlider",
+      "pos": [
+        703.9859619140625,
+        1115.26318359375
+      ],
+      "size": [
+        210,
+        194
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 22,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            42,
+            123,
+            176
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "BOOLEAN",
+          "type": "BOOLEAN",
+          "links": null
+        }
+      ],
+      "title": "23.frames",
+      "properties": {
+        "Node name for S&R": "FlipStreamSlider"
+      },
+      "widgets_values": [
+        "frames",
+        8,
+        8,
+        24,
+        8
+      ]
+    },
+    {
+      "id": 98,
+      "type": "FlipStreamVideoInput",
+      "pos": [
+        888.7310180664062,
+        961.8289794921875
+      ],
+      "size": [
+        210,
+        102
+      ],
+      "flags": {},
+      "order": 32,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "frames",
+          "type": "INT",
+          "link": 176,
+          "widget": {
+            "name": "frames"
+          }
+        },
+        {
+          "name": "path",
+          "type": "STRING",
+          "link": 177,
+          "widget": {
+            "name": "path"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            178
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "enable",
+          "type": "BOOLEAN",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "FlipStreamVideoInput"
+      },
+      "widgets_values": [
+        "",
+        0,
+        3,
+        8
+      ]
+    },
+    {
+      "id": 99,
+      "type": "FlipStreamFileSelect_Input",
+      "pos": [
+        705.8632202148438,
+        1164.3529052734375
+      ],
+      "size": [
+        210,
+        266
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 23,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "file",
+          "type": "*",
+          "links": null
+        },
+        {
+          "name": "path",
+          "type": "*",
+          "links": [
+            177
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "enable",
+          "type": "BOOLEAN",
+          "links": null
+        }
+      ],
+      "title": "24.input",
+      "properties": {
+        "Node name for S&R": "FlipStreamFileSelect_Input"
+      },
+      "widgets_values": [
+        "input",
+        "",
+        "input",
+        "ComfyUI\\input",
+        "",
+        false,
+        true,
+        true
+      ]
+    },
+    {
+      "id": 66,
+      "type": "FlipStreamSection",
+      "pos": [
+        652.723388671875,
+        949.7792358398438
+      ],
+      "size": [
+        210,
+        58
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 33,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "hook",
+          "type": "*",
+          "link": 179,
+          "shape": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "*",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "title": "20.Source",
+      "properties": {
+        "Node name for S&R": "FlipStreamSection"
+      },
+      "widgets_values": [
+        "Source"
+      ]
+    },
+    {
+      "id": 13,
+      "type": "FlipStreamSlider",
+      "pos": [
+        708.4448852539062,
+        1002.5443725585938
+      ],
+      "size": [
+        210,
+        194
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 24,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "FLOAT",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            121,
+            179
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "BOOLEAN",
+          "type": "BOOLEAN",
+          "links": null
+        }
+      ],
+      "title": "21.width",
+      "properties": {
+        "Node name for S&R": "FlipStreamSlider"
+      },
+      "widgets_values": [
+        "width",
+        768,
+        256,
+        2048,
+        32
+      ]
     }
   ],
   "links": [
@@ -3055,28 +2963,12 @@
       "INT"
     ],
     [
-      124,
-      32,
-      1,
-      62,
-      3,
-      "INT"
-    ],
-    [
       125,
       10,
       0,
       65,
       0,
       "*"
-    ],
-    [
-      129,
-      68,
-      0,
-      62,
-      2,
-      "STRING"
     ],
     [
       130,
@@ -3239,36 +3131,12 @@
       "FLOAT"
     ],
     [
-      157,
-      90,
-      1,
-      68,
-      0,
-      "STRING"
-    ],
-    [
-      158,
-      90,
-      2,
-      68,
-      1,
-      "BOOLEAN"
-    ],
-    [
       159,
       72,
       1,
       69,
       1,
       "INT"
-    ],
-    [
-      160,
-      90,
-      1,
-      66,
-      0,
-      "*"
     ],
     [
       163,
@@ -3291,14 +3159,6 @@
       64,
       0,
       93,
-      0,
-      "IMAGE"
-    ],
-    [
-      167,
-      62,
-      0,
-      64,
       0,
       "IMAGE"
     ],
@@ -3349,21 +3209,53 @@
       80,
       0,
       "IMAGE"
+    ],
+    [
+      176,
+      32,
+      1,
+      98,
+      0,
+      "INT"
+    ],
+    [
+      177,
+      99,
+      1,
+      98,
+      1,
+      "STRING"
+    ],
+    [
+      178,
+      98,
+      0,
+      64,
+      0,
+      "IMAGE"
+    ],
+    [
+      179,
+      13,
+      1,
+      66,
+      0,
+      "*"
     ]
   ],
   "groups": [],
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.5993439296133066,
+      "scale": 0.9891143573961911,
       "offset": [
-        -606.8898677437485,
-        271.3142816997852
+        -584.1981080410555,
+        -818.0687571940349
       ]
     },
     "node_versions": {
       "comfy-core": "0.3.14",
-      "ComfyUI_FlipStreamViewer": "c727b903bb52c60932d2cd2b3841c6248d25854c",
+      "comfyui_flipstreamviewer": "3837719be12d9a79128a7a9e1395320da5f14947",
       "comfyui-impact-pack": "1ae7cae2df8cca06027edfa3a24512671239d6c4",
       "comfyui-animatediff-evolved": "94eb45621c7e5a5286968b3938b1b7689d34ced0",
       "comfyui_lora_tag_loader": "c1e1a061d42384e06ff6c547c4a00aef7cc96e59",
