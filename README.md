@@ -115,3 +115,4 @@ append text
 - **segmask.json**: A 2-step process for generating frames using batch prompts and segmentation mask, followed by interpolation.
 - **animate.json**: Using AnimateDiff with FlipStreamSource, FlipStreamBatchPrompt, and FlipStreamFilmVfi.
 - **grab_rembg_depth_animate.json**: Using ControlNet and AnimateDiff with FlipStreamScreenGrabber, FlipStreamRembg.
+- **quick_vid2vid.json**: Quick tuning workflow for vid2vid.
