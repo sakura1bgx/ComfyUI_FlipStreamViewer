@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import hashlib
 import html
@@ -1289,7 +1288,7 @@ async def get_status(request):
     if info:
         errinfo = info["messages"][2][1]
         status.append(info["status_str"])
-        status += [errinfo.get(key, "") for key in ["node_id", "node_type", "exception_message", "exception_type"]]
+        status += [errinfo[key] for key in ["node_id", "node_type", "exception_message", "exception_type"] if key in errinfo]
     return web.Response(text=":".join(status))
 
 
@@ -1914,13 +1913,15 @@ class FlipStreamVideoInput:
     def run(self, path, first, step, frames):
         if not path or not Path(path).is_file():
             return (None, False)
-
-        with iio.imopen(path, "r") as file:
-            buf = [file.read(index=i) for i in range(first, first+(frames-1)*step+1, step)]
-        buf = np.stack(buf).astype(np.float32) / 255
-        enable = buf.shape[0] == frames
-        image = torch.from_numpy(buf) if enable else None
-        return (image, enable)
+        try:
+            with iio.imopen(path, "r") as file:
+                buf = [file.read(index=i) for i in range(first, first+(frames-1)*step+1, step)]
+            buf = np.stack(buf).astype(np.float32) / 255
+            enable = buf.shape[0] == frames
+            image = torch.from_numpy(buf) if enable else None
+            return (image, enable)
+        except:
+            return (None, False)
 
 
 class FlipStreamSource:
@@ -1964,10 +1965,11 @@ class FlipStreamSource:
                 image = buf[:, :, w2-x2:w2+x2]
             if vae:
                 latent = {"samples": vae.encode(image)}
+            else:
+                latent = {"samples": torch.zeros([frames, 4, height // 8, width // 8], device=comfy.model_management.intermediate_device())}
         else:
             image = torch.zeros([frames, height, width, 3])
-            if vae:
-                latent = {"samples": torch.zeros([frames, 4, height // 8, width // 8], device=comfy.model_management.intermediate_device())}
+            latent = {"samples": torch.zeros([frames, 4, height // 8, width // 8], device=comfy.model_management.intermediate_device())}
         return (image, latent,)
 
 
@@ -2270,14 +2272,14 @@ class FlipStreamViewer:
         global frame_updating
         global frame_buffer
         global frame_mtime
-        buf = np.array(tensor.cpu().numpy() * 255, dtype=np.uint8)
+        buf = (tensor.detach().cpu().numpy() * 255).astype(np.uint8)
+        buf = np.concatenate([buf, np.flip(buf, axis=0)])
         with BytesIO() as output:
-            iio.imwrite(output, list(buf) + list(buf[::-1]), format='png', compression=STREAM_COMPRESSION, fps=fps)
+            iio.imwrite(output, buf, format='png', compression=STREAM_COMPRESSION, fps=fps)
             frame_buffer = output.getvalue()
             frame_mtime = time.time()
         frame_updating = False
         return ()
-
 
 NODE_CLASS_MAPPINGS = {
     "FlipStreamSection": FlipStreamSection,
