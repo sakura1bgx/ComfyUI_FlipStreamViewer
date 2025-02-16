@@ -134,6 +134,7 @@ select {
 
 div.row {
     display: flex;
+    position: relative;
 }
 
 .FlipStreamSlider {
@@ -157,6 +158,12 @@ div.row {
 
 .FlipStreamPreviewBox {
     max-width: 100%;
+}
+
+.FlipStreamPreviewRoi {
+    position: absolute;
+    top: 0;
+    left: 0;
 }
 
 #statusInfo {
@@ -327,6 +334,48 @@ function updateParam(reload=false, force_state={}, force_param={}, search="") {
     });
     updateButton.disabled = false;
 }
+
+function setupPreviewRoi() {
+    document.querySelectorAll('.FlipStreamPreviewRoi').forEach(canvas => {
+        const ctx = canvas.getContext('2d');
+        const img = canvas.parentElement.querySelector('img');
+        const label = canvas.id.replace("PreviewRoi", "");
+        img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+        };
+
+        let drawing = false, x, y;
+        canvas.onmousedown = e => { drawing = true; [x, y] = [e.offsetX, e.offsetY]; };
+        canvas.onmousemove = e => { if (drawing) { canvas.width = canvas.width; ctx.strokeStyle = 'red'; ctx.strokeRect(x, y, e.offsetX - x, e.offsetY - y); } };
+        canvas.onmouseup = e => {
+            if (!drawing) return;
+            drawing = false;
+            var sx = x / canvas.width;
+            var sy = y / canvas.height;
+            var ex = e.offsetX / canvas.width;
+            var ey = e.offsetY / canvas.height;
+            if (ex <= sx || ey <= sy) {
+                sx = 0;
+                sy = 0;
+                ex = 1;
+                ey = 1;
+            }
+            fetch('/flipstreamviewer/preview_setroi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    label: label,
+                    sx: sx,
+                    sy: sy,
+                    ex: ex,
+                    ey: ey
+                })
+            });
+        };
+    });
+}
+setupPreviewRoi();
 """
 
 SCRIPT_PRESET=r"""
@@ -901,6 +950,15 @@ async def preview_mtime(request):
     return web.Response(text=str(data))
 
 
+@server.PromptServer.instance.routes.post("/flipstreamviewer/preview_setroi")
+async def preview_setroi(request):
+    if request.remote not in allowed_ips: raise HTTPForbidden()
+    data = await request.json()
+    print("set_roi:", data)
+    param[data['label'] + "PreviewRoi"] = data
+    return web.Response()
+
+
 @server.PromptServer.instance.routes.get("/flipstreamviewer")
 async def viewer(request):
     if request.remote not in allowed_ips:
@@ -1042,8 +1100,9 @@ async def viewer(request):
             block[f"{title}_{label}"] = f"""
             <div class="row" style="color: lightslategray;">
                 <img class="FlipStreamPreviewBox" id="{label}PreviewBox" name="{label}" src="/flipstreamviewer/preview?label={label}" alt onerror="this.onerror = null; this.src='';" />
+                <canvas class="FlipStreamPreviewRoi" id="{label}PreviewRoi"></canvas>
             </div>"""
-    
+
     hist = server.PromptServer.instance.prompt_queue.get_history(max_items=1)
     nodedict = next(iter(hist.values()))["prompt"][2] if hist else None
     if nodedict:
@@ -1783,6 +1842,42 @@ class FlipStreamGetParam:
         return (value,)
 
 
+class FlipStreamGetPreviewRoi:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "label": ("STRING", {"default": "empty"}),
+                "width": ("INT", {"default": 512, "min": 256, "max": 2048, "step": 32}),
+                "height": ("INT", {"default": 512, "min": 256, "max": 2048, "step": 32}),
+                "default_left": ("INT", {"default": 0}),
+                "default_top": ("INT", {"default": 0}),
+                "default_right": ("INT", {"default": 0}),
+                "default_bottom": ("INT", {"default": 0}),
+            },
+        }
+
+    RETURN_TYPES = ("INT", "INT", "INT", "INT", "INT", "INT")
+    RETURN_NAMES = ("left", "top", "right", "bottom", "inner_width", "inner_height")
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    @classmethod
+    def IS_CHANGED(cls, label, **kwargs):
+        roi_data = frozenset(param.get(label + "PreviewRoi", {}).items())
+        return hash(roi_data)
+
+    def run(self, label, default_left, default_top, default_right, default_bottom, width, height):
+        roi_data = param.get(label + "PreviewRoi", {})
+        left = int(roi_data['sx'] * width) if 'sx' in roi_data else default_left
+        top = int(roi_data['sy'] * height) if 'sy' in roi_data else default_top
+        right = int(width - roi_data['ex'] * width) if 'ex' in roi_data else default_right
+        bottom = int(height - roi_data['ey'] * height) if 'ey' in roi_data else default_bottom
+        inner_width = width - left - right
+        inner_height = height - top - bottom
+        return (left, top, right, bottom, inner_width, inner_height)
+
+
 class FlipStreamImageSize:
     @classmethod
     def INPUT_TYPES(s):
@@ -2298,6 +2393,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamPreviewBox": FlipStreamPreviewBox,
     "FlipStreamSetParam": FlipStreamSetParam,
     "FlipStreamGetParam": FlipStreamGetParam,
+    "FlipStreamGetPreviewRoi": FlipStreamGetPreviewRoi,
     "FlipStreamImageSize": FlipStreamImageSize,
     "FlipStreamTextReplace": FlipStreamTextReplace,
     "FlipStreamScreenGrabber": FlipStreamScreenGrabber,
@@ -2329,6 +2425,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamPreviewBox": "FlipStreamPreviewBox",
     "FlipStreamSetParam": "FlipStreamSetParam",
     "FlipStreamGetParam": "FlipStreamGetParam",
+    "FlipStreamGetPreviewRoi": "FlipStreamGetPreviewRoi",
     "FlipStreamImageSize": "FlipStreamImageSize",
     "FlipStreamTextReplace": "FlipStreamTextReplace",
     "FlipStreamScreenGrabber": "FlipStreamScreenGrabber",
