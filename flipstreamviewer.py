@@ -1499,7 +1499,7 @@ async def save_preset(request):
     state.update(stt)
     param.update(data)
     with open(Path("preset", state["presetFolder"], state["presetTitle"] + ".json"), "w") as file:
-        json.dump(data, file)
+        json.dump(param, file)
     return web.Response()
 
 
@@ -1868,6 +1868,8 @@ class FlipStreamGetPreviewRoi:
         return hash(roi_data)
 
     def run(self, label, default_left, default_top, default_right, default_bottom, width, height):
+        global frame_updating
+        frame_updating = True
         roi_data = param.get(label + "PreviewRoi", {})
         left = int(roi_data['sx'] * width) if 'sx' in roi_data else default_left
         top = int(roi_data['sy'] * height) if 'sy' in roi_data else default_top
