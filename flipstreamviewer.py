@@ -2009,7 +2009,7 @@ class FlipStreamVideoInput:
 
     def run(self, path, first, step, frames):
         if not path or not Path(path).is_file():
-            return (None, False)
+            return (torch.zeros([1, 32, 32, 3]), False)
         try:
             with iio.imopen(path, "r") as file:
                 buf = [file.read(index=i) for i in range(first, first+(frames-1)*step+1, step)]
@@ -2018,7 +2018,7 @@ class FlipStreamVideoInput:
             image = torch.from_numpy(buf) if enable else None
             return (image, enable)
         except:
-            return (None, False)
+            return (torch.zeros([1, 32, 32, 3]), False)
 
 
 class FlipStreamSource:
@@ -2049,17 +2049,9 @@ class FlipStreamSource:
             image = image[:,:,:,:3] * image[:,:,:,3:4]
         if image is not None and image.shape[0] >= frames:
             buf = image[:frames]
-            if height != buf.shape[2]:
-                buf = buf.movedim(-1,1)
-                buf = comfy.utils.common_upscale(buf, round(buf.shape[3] * height / buf.shape[2]), height, "lanczos", "disabled")
-                buf = buf.movedim(1,-1)
-            image = torch.zeros([frames, height, width, 3])
-            x2 = width // 2
-            w2 = buf.shape[2] // 2
-            if (x2 - w2 >= 0):
-                image[:, :, x2-w2:x2+w2] = buf[:, :, :w2*2]
-            else:
-                image = buf[:, :, w2-x2:w2+x2]
+            buf = buf.movedim(-1,1)
+            buf = comfy.utils.common_upscale(buf, width, height, "lanczos", "centor")
+            image = buf.movedim(1,-1)
             if vae:
                 latent = {"samples": vae.encode(image)}
             else:
@@ -2114,6 +2106,35 @@ class FlipStreamSwitchLatent:
         if enable:
             return (latent_enable,)
         return (latent,)
+
+
+class FlipStreamGate:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "a": (any,),
+            },
+            "optional": {
+                "b": (any,),
+                "c": (any,),
+                "d": (any,),
+                "e": (any,),
+                "f": (any,),
+                "g": (any,),
+                "h": (any,),
+                "i": (any,),
+                "j": (any,),
+            }
+        }
+
+    RETURN_TYPES = (any, any, any, any, any, any, any, any, any, any)
+    RETURN_NAMES =("a", "b", "c", "d", "e", "f", "g", "h", "i", "j")
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, a, b=None, c=None, d=None, e=None, f=None, g=None, h=None, i=None, j=None):
+        return (a, b, c, d, e, f, g, h, i, j)
 
 
 class FlipStreamRembg:    
@@ -2403,6 +2424,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamSource": FlipStreamSource,
     "FlipStreamSwitchImage": FlipStreamSwitchImage,
     "FlipStreamSwitchLatent": FlipStreamSwitchLatent,
+    "FlipStreamGate": FlipStreamGate,
     "FlipStreamRembg": FlipStreamRembg,
     "FlipStreamSegMask": FlipStreamSegMask,
     "FlipStreamBatchPrompt": FlipStreamBatchPrompt,
@@ -2435,6 +2457,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamSource": "FlipStreamSource",
     "FlipStreamSwitchImage": "FlipStreamSwitchImage",
     "FlipStreamSwitchLatent": "FlipStreamSwitchLatent",
+    "FlipStreamGate": "FlipStreamGate",
     "FlipStreamRembg": "FlipStreamRembg",
     "FlipStreamSegMask": "FlipStreamSegMask",
     "FlipStreamBatchPrompt": "FlipStreamBatchPrompt",
