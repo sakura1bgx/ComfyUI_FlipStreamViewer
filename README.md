@@ -43,7 +43,7 @@ The following custom nodes may also be used within workflows:
 
 - **Customizable Left Panel**: The left panel UI is customizable with UI Nodes.
 - **UI Node Ordering**: These UI nodes are ordered by their titles, and you can change the node titles to something like '10.steps' or '11.cfg'. You can also click on the title to compact the node on the workflow.
-- **Label Input**: Each UI node has a 'label' input, which should be a unique identifier used as the parameter name. 'loramode', 'lora', 'offsetX', 'offsetY' and 'scale' are internally used, so they cannot be used for labels.
+- **Label Input**: Each UI node has a 'label' input, which should be a unique identifier used as the parameter name. 'loramode' and 'lora' are internally used, so they cannot be used for labels.
 - **Enable Output**: Each UI node also has an 'enable' output to use with 'Control Bridge' for switching to bypass some nodes or FlipStreamSwitch* for switching input.
 - **Right Panel**: You can operate several prepared functions such as Status, Darker, Tagger, Preset, and Lora.
 - **Status**: The right panel shows ComfyUI status and error information.
