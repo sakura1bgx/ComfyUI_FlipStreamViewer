@@ -57,8 +57,8 @@ def atob(value):
 STREAM_COMPRESSION = 0
 allowed_ips = ["127.0.0.1"]
 setparam = {}
-param = {"loramode": "", "lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
-state = {"presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
+param = {"lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
+state = {"presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
 frame_updating = False
 frame_buffer = None
 frame_mtime = 0
@@ -1028,15 +1028,13 @@ async def viewer(request):
             </select>"""
         block[f"{title}_{label}"] = text_html
 
-    def add_fileselect(title, label, default, folder_name, folder_path, mode, use_lora, use_sub, use_move):
+    def add_fileselect(title, label, default, folder_name, folder_path, mode, use_sub, use_move):
         if not label.isidentifier():
             raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
         if not (mode == "" or mode.isidentifier()):
             raise RuntimeError(f"{title}: mode must contain only valid identifier characters.")
         param.setdefault(label, "")
         state.setdefault(f"{label}Folder", "")
-        if use_lora:
-            param["loramode"] = mode
         text_html = ""
         if use_sub:
             text_html += f"""
@@ -1185,19 +1183,19 @@ async def viewer(request):
             <div class="row"><i>Lora</i></div>
             <select id="loraFolderSelect" class="willreload" onchange="updateParam(true)">
                 <option value="" selected>lora folder</option>
-                {"".join([f'<option value="{dir.name}"{" selected" if state["loraFolder"] == dir.name else ""}>{dir.name}</option>' for dir in Path("ComfyUI/models/loras", param["loramode"]).glob("*/")])}
+                {"".join([f'<option value="{dir.name}"{" selected" if state["loraFolder"] == dir.name else ""}>{dir.name}</option>' for dir in Path("ComfyUI/models/loras", state["loraMode"]).glob("*/")])}
             </select>
             <div class="row">
                 <select id="loraFileSelect" onchange="selectLoraFile()">
                     <option value="" disabled selected>lora file</option>
-                    {"".join([f'<option value="{file.name}"{" selected" if state["loraFile"] == file.name else ""}>{file.stem}</option>' for file in Path("ComfyUI/models/loras", param["loramode"], state["loraFolder"]).glob("*.safetensors")])}
+                    {"".join([f'<option value="{file.name}"{" selected" if state["loraFile"] == file.name else ""}>{file.stem}</option>' for file in Path("ComfyUI/models/loras", state["loraMode"], state["loraFolder"]).glob("*.safetensors")])}
                 </select>
                 <button onclick="toggleLora()">T</button>
                 <button onClick="moveLora()">M</button>
             </div>
             <select id="moveLoraSelect" onchange="moveLoraFile()">
                 <option value="" disabled selected>move to</option>
-                {"".join([f'<option value="{dir.name}">{dir.name}</option>' for dir in Path("ComfyUI/models/loras", param["loramode"]).glob("*/")])}
+                {"".join([f'<option value="{dir.name}">{dir.name}</option>' for dir in Path("ComfyUI/models/loras", state["loraMode"]).glob("*/")])}
             </select>
             <div class="row">
                 <select id="loraTagSelect" onchange="toggleTag()">
@@ -1370,7 +1368,7 @@ async def get_lorainfo(request):
         raise HTTPForbidden()
 
     req = await request.json()
-    loraPath = Path("ComfyUI/models/loras", param["loramode"], req["loraFolder"], req["loraFile"])
+    loraPath = Path("ComfyUI/models/loras", state["loraMode"], req["loraFolder"], req["loraFile"])
     hash = None
     with open(loraPath, "rb") as file:
         header_size = int.from_bytes(file.read(8), "little", signed=False)
@@ -1462,8 +1460,8 @@ async def move_lorafile(request):
 
     stt, moveTo = await request.json()
     state.update(stt)
-    pathFrom = Path("ComfyUI/models/loras", param["loramode"], state["loraFolder"], state["loraFile"])
-    pathTo = Path("ComfyUI/models/loras", param["loramode"], moveTo, pathFrom.name)
+    pathFrom = Path("ComfyUI/models/loras", state["loraMode"], state["loraFolder"], state["loraFile"])
+    pathTo = Path("ComfyUI/models/loras", state["loraMode"], moveTo, pathFrom.name)
     Path(pathFrom).rename(pathTo)
     state["loraFolder"] = moveTo
     return web.Response()
@@ -1687,7 +1685,6 @@ class FlipStreamFileSelect:
                 "folder_name": ([s.FOLDER_NAME],),
                 "folder_path": ([s.FOLDER_PATH],),
                 "mode": ("STRING", {"default": ""}),
-                "use_lora": ("BOOLEAN", {"defalut": False}),
                 "use_sub": ("BOOLEAN", {"defalut": False}),
                 "use_move": ("BOOLEAN", {"defalut": False}),
             }
@@ -1703,7 +1700,7 @@ class FlipStreamFileSelect:
         param.setdefault(label, "")
         return hash((param[label],))
 
-    def run(self, label, default, folder_name, folder_path, **kwargs):
+    def run(self, label, default, folder_path, **kwargs):
         global frame_updating
         frame_updating = True
         param.setdefault(label, "")
@@ -2369,15 +2366,17 @@ class FlipStreamViewer:
                 "wd14exc": ("STRING", {"default": ""}),
                 "idle": ("FLOAT", {"default": 1.0, "min": 0.0}),
                 "fps": ("INT", {"default": 8, "min": 1, "max": 30}),
+                "loramode": ("STRING", {"default": ""}),
             },
         }
 
     @classmethod
-    def IS_CHANGED(cls, allowip, wd14exc, idle, **kwargs):
+    def IS_CHANGED(cls, allowip, wd14exc, idle, loramode, **kwargs):
         global allowed_ips
         global exclude_tags
         allowed_ips = ["127.0.0.1"] + list(map(str.strip, allowip.split(",")))
         exclude_tags = wd14exc
+        state["loraMode"] = loramode
         time.sleep(idle)
         return None
 
