@@ -349,7 +349,7 @@
         "checkpoints",
         "sd_xl_base_1.0.safetensors",
         "checkpoints",
-        "ComfyUI\\models\\checkpoints",
+        "ComfyUI/models/checkpoints",
         "",
         false,
         false,
@@ -1964,7 +1964,7 @@
             "format": "video/h264-mp4",
             "frame_rate": 8,
             "workflow": "sc_00001.png",
-            "fullpath": "C:\\work\\ComfyUI_windows_portable\\ComfyUI\\output\\sc_00001.mp4"
+            "fullpath": "ComfyUI/output/sc_00001.mp4"
           }
         }
       }
@@ -2616,7 +2616,7 @@
         "input",
         "",
         "input",
-        "ComfyUI\\input",
+        "ComfyUI/input",
         "",
         false,
         true,
