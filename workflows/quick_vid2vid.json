@@ -1122,7 +1122,7 @@
         "Node name for S&R": "ControlNetLoader"
       },
       "widgets_values": [
-        "SDXL\\CN-anytest_v4-marged_pn_dim256.safetensors"
+        "SDXL/CN-anytest_v4-marged_pn_dim256.safetensors"
       ]
     },
     {
@@ -1496,7 +1496,7 @@
         "input",
         "",
         "input",
-        "ComfyUI\\input",
+        "ComfyUI/input",
         "",
         false,
         true,
@@ -1738,7 +1738,7 @@
         "checkpoints",
         "sd_xl_base_1.0.safetensors",
         "checkpoints",
-        "ComfyUI\\models\\checkpoints",
+        "ComfyUI/models/checkpoints",
         "",
         false,
         true,

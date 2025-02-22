@@ -768,7 +768,7 @@
         "checkpoints",
         "sd_xl_base_1.0.safetensors",
         "checkpoints",
-        "ComfyUI\\models\\checkpoints",
+        "ComfyUI/models/checkpoints",
         "",
         false,
         false,

@@ -1313,9 +1313,9 @@ async def viewer(request):
                 <span id="darkerValue">{state["darker"]}</span>drk
             </div>
             <div class="row"><i>Preset</i></div>
-            {"".join([f"""
+            {"".join([f'''
             <button onclick="loadPreset(false, {{ presetFile: '{file.name}' }}, 'showPresetDialog')">{file.stem}</button>
-            """ for file in Path("preset", state["presetFolder"]).glob("*.json")])}
+            ''' for file in Path("preset", state["presetFolder"]).glob("*.json")])}
         </div>
     </div>
     <script>
@@ -1421,7 +1421,7 @@ async def set_frame(request):
     pngdata = base64.b64decode((await request.text()).split(',', 1)[1])
     with BytesIO(pngdata) as data:
         with BytesIO() as output:
-            iio.imwrite(output, [iio.imread(data)], format="png", compression=STREAM_COMPRESSION)
+            iio.imwrite(output, [iio.imread(data)], format="png", extension=".apng", compression=STREAM_COMPRESSION)
             frame_buffer = output.getvalue()
             frame_mtime = time.time()
     return web.Response()
@@ -1772,7 +1772,7 @@ class FlipStreamPreviewBox:
         image = Image.fromarray(buf)
         image.thumbnail((256, 256))
         with BytesIO() as output:
-            iio.imwrite(output, np.array(image), format="png", compression=STREAM_COMPRESSION)
+            iio.imwrite(output, np.array(image), format="png", extension=".png", compression=STREAM_COMPRESSION)
             state[label + "PreviewBox"] = (time.time(), output.getvalue())
         return ()
 
@@ -2393,7 +2393,7 @@ class FlipStreamViewer:
         buf = (tensor.detach().cpu().numpy() * 255).astype(np.uint8)
         buf = np.concatenate([buf, np.flip(buf, axis=0)])
         with BytesIO() as output:
-            iio.imwrite(output, buf, format='png', compression=STREAM_COMPRESSION, fps=fps)
+            iio.imwrite(output, buf, format='png', extension=".apng", compression=STREAM_COMPRESSION, fps=fps)
             frame_buffer = output.getvalue()
             frame_mtime = time.time()
         frame_updating = False
