@@ -1713,23 +1713,23 @@ class FlipStreamFileSelect:
 
 class FlipStreamFileSelect_Checkpoints(FlipStreamFileSelect):
     FOLDER_NAME = "checkpoints"
-    FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()))
+    FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix())
 
 
 class FlipStreamFileSelect_VAE(FlipStreamFileSelect):
     FOLDER_NAME = "vae"
-    FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()))
+    FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix())
 
 
 class FlipStreamFileSelect_ControlNetModel(FlipStreamFileSelect):
     FOLDER_NAME = "controlnet"
-    FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()))
+    FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix())
 
 
 class FlipStreamFileSelect_TensorRT(FlipStreamFileSelect):
     FOLDER_NAME = "tensorrt"
     try:
-        FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()))
+        FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix())
     except:
         FOLDER_PATH = "_error_ tensorrt folder is not found"
 
@@ -1737,19 +1737,19 @@ class FlipStreamFileSelect_TensorRT(FlipStreamFileSelect):
 class FlipStreamFileSelect_AnimateDiffModel(FlipStreamFileSelect):
     FOLDER_NAME = "animatediff_models"
     try:
-        FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()))
+        FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix())
     except:
         FOLDER_PATH = "_error_ animatediff_models folder is not found"
 
 
 class FlipStreamFileSelect_Input(FlipStreamFileSelect):
     FOLDER_NAME = "input"
-    FOLDER_PATH = str(Path(folder_paths.input_directory).relative_to(Path.cwd()))
+    FOLDER_PATH = str(Path(folder_paths.input_directory).relative_to(Path.cwd()).as_posix())
 
 
 class FlipStreamFileSelect_Output(FlipStreamFileSelect):
     FOLDER_NAME = "output"
-    FOLDER_PATH = str(Path(folder_paths.output_directory).relative_to(Path.cwd()))
+    FOLDER_PATH = str(Path(folder_paths.output_directory).relative_to(Path.cwd()).as_posix())
 
 
 class FlipStreamPreviewBox:
