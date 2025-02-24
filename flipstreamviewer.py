@@ -55,6 +55,7 @@ def atob(value):
     return base64.b64decode(value.encode()).decode("latin-1")
 
 STREAM_COMPRESSION = 0
+UPDATE_DELAY = 1.0
 allowed_ips = ["127.0.0.1"]
 setparam = {}
 param = {"lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
@@ -1359,6 +1360,7 @@ async def update_param(request):
     param.update(prm)
     param.update(setparam)
     setparam.clear()
+    time.sleep(UPDATE_DELAY)
     return web.Response()
 
 
@@ -1473,19 +1475,16 @@ async def load_preset(request):
         raise HTTPForbidden()
 
     stt, loraPromptOnly = await request.json()
-    state.update(stt)
-    data = param
-    with open(Path("preset", state["presetFolder"], state["presetFile"]), "r") as file:
+    with open(Path("preset", stt["presetFolder"], stt["presetFile"]), "r") as file:
         buf = json.load(file)
         if loraPromptOnly:
-            if "lora" in buf:
-                data["lora"] = buf["lora"]
-        else:
-            data = buf
+            buf = {"lora": buf.get("lora", "")}
 
-    param.update(data)
+    state.update(stt)
+    param.update(buf)
     state["presetTitle"] = Path(state["presetFile"]).stem
-    return web.json_response({"lora": data["lora"], "presetTitle": state["presetTitle"]})
+    time.sleep(UPDATE_DELAY)
+    return web.json_response({"lora": param["lora"], "presetTitle": state["presetTitle"]})
 
 
 @server.PromptServer.instance.routes.post("/flipstreamviewer/save_preset")
@@ -1493,9 +1492,10 @@ async def save_preset(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
 
-    [stt, data] = await request.json()
+    stt, prm = await request.json()
     state.update(stt)
-    param.update(data)
+    param.update(prm)
+    time.sleep(UPDATE_DELAY)
     with open(Path("preset", state["presetFolder"], state["presetTitle"] + ".json"), "w") as file:
         json.dump(param, file)
     return web.Response()
@@ -2110,28 +2110,30 @@ class FlipStreamGate:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "a": (any,),
+                "model": ("MODEL",),
+                "pos": ("CONDITIONING",),
+                "neg": ("CONDITIONING",),
+                "latent": ("LATENT",),
             },
             "optional": {
+                "a": (any,),
                 "b": (any,),
                 "c": (any,),
                 "d": (any,),
                 "e": (any,),
                 "f": (any,),
                 "g": (any,),
-                "h": (any,),
-                "i": (any,),
-                "j": (any,),
+                "h": (any,)
             }
         }
 
-    RETURN_TYPES = (any, any, any, any, any, any, any, any, any, any)
-    RETURN_NAMES =("a", "b", "c", "d", "e", "f", "g", "h", "i", "j")
+    RETURN_TYPES = ("MODEL", "CONDITIONING", "CONDITIONING", "LATENT", any, any, any, any, any, any, any, any)
+    RETURN_NAMES = ("model", "pos", "neg", "latent", "a", "b", "c", "d", "e", "f", "g", "h")
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, a, b=None, c=None, d=None, e=None, f=None, g=None, h=None, i=None, j=None):
-        return (a, b, c, d, e, f, g, h, i, j)
+    def run(self, model, pos, neg, latent, a=None, b=None, c=None, d=None, e=None, f=None, g=None, h=None):
+        return (model, pos, neg, latent, a, b, c, d, e, f, g, h)
 
 
 class FlipStreamRembg:    
