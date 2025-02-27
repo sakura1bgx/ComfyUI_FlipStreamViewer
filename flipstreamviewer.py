@@ -955,7 +955,6 @@ async def preview_mtime(request):
 async def preview_setroi(request):
     if request.remote not in allowed_ips: raise HTTPForbidden()
     data = await request.json()
-    print("set_roi:", data)
     param[data['label'] + "PreviewRoi"] = data
     return web.Response()
 
