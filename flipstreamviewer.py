@@ -44,7 +44,7 @@ except:
     film = None
 
 try:
-    from custom_nodes.ComfyUI_TensorRT import TensorRTLoader
+    from custom_nodes.comfyui_tensorrt import TensorRTLoader
 except:
     TensorRTLoader = None
 
