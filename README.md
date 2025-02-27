@@ -72,18 +72,20 @@ The following custom nodes may also be used within workflows:
 - **FlipStreamFileSelect_AnimateDiffModel**: A file selector for AnimateDiff models. It may be used with ComfyUI-AnimateDiff-Evolved.
 - **FlipStreamFileSelect_Input**: A file selector for ComfyUI input folder.
 - **FlipStreamFileSelect_Output**: A file selector for ComfyUI output folder.
-- **FlipStreamPreviewBox**: A box for previewing input image.
+- **FlipStreamPreviewBox**: A box for previewing the input image. You can select the ROI (Region of Interest) in the preview by dragging the mouse.
 
 ## Other Nodes
 
 - **FlipStreamSetParam**: A node for setting parameters. However, it needs a reload to update the value in the viewer UI.
 - **FlipStreamGetParam**: A node for getting parameters. 'lora' is a prepared parameter that contains text at the Lora input. Some prompts can contain '{lora}' and FlipStreamTextReplace can help find '{lora}' and replace it with the output of the get param node of 'lora'. 'b64dec' is true for 'lora' and other 'FlipStreamTextBox' parameters, because these multiline parameters are internally base64 encoded.
+- **FlipStreamGetPreviewRoi**: A node for obtaining the preview ROI (Region of Interest) selection.
 - **FlipStreamImageSize**: A node for getting image size.
 - **FlipStreamTextReplace**: A node for replacing text. It will output the result of `text.replace(find, replace.format(value))`.
 - **FlipStreamScreenGrabber**: A node for grab multiframe screenshots.
 - **FlipStreamSource**: A node for prepare image or latent source.
 - **FlipStreamSwitchImage**: A node for switching images.
 - **FlipStreamSwitchLatent**: A node for switching latents.
+- **FlipStreamGate**: A node for consolidating input timing to ensure that inputs to the sampler do not occur sequentially.
 - **FlipStreamRembg**: A node for remove background. It depends on ComfyUI-Inspyrenet-Rembg.
 - **FlipStreamSegMask**: A node for segmentation masks. The target can contain multiple words separated by commas for segmentation. It will use the 'microsoft/Florence-2-large' model, which you can download using the DownloadAndLoadFlorence2Model node of ComfyUI-Florence2. Segmentation sometimes fails, so you may need to try some other random seeds.
 - **FlipStreamBatchPrompt**: A node for simple batch prompting. Use the following format for the input prompt of this node. The 'pre text' and 'append text' sections apply to all frames. The separator `----` should consist of four hyphens, and each line of 'frame text' applies evenly to the number of frames specified in 'frames'. For example, if 'frames' is 8 and there are 2 'frame text' lines, they will be applied starting from frames 0 and 4.
