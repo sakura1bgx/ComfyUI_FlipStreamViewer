@@ -38,6 +38,7 @@ The following custom nodes may also be used within workflows:
 - ComfyUI-AnimateDiff-Evolved
 - ComfyUI-VideoHelperSuite
 - ComfyUI-DepthAnythingV2
+- ComfyUI-Advanced-ControlNet
 
 ## UI Features
 
