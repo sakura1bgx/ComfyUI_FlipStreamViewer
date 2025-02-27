@@ -43,7 +43,7 @@ The following custom nodes may also be used within workflows:
 
 - **Customizable Left Panel**: The left panel UI is customizable with UI Nodes.
 - **UI Node Ordering**: These UI nodes are ordered by their titles, and you can change the node titles to something like '10.steps' or '11.cfg'. You can also click on the title to compact the node on the workflow.
-- **Label Input**: Each UI node has a 'label' input, which should be a unique identifier used as the parameter name. 'loramode' and 'lora' are internally used, so they cannot be used for labels.
+- **Label Input**: Each UI node has a 'label' input, which should be a unique identifier used as the parameter name. 'lora' is internally used, so they cannot be used for labels.
 - **Enable Output**: Each UI node also has an 'enable' output to use with 'Control Bridge' for switching to bypass some nodes or FlipStreamSwitch* for switching input.
 - **Right Panel**: You can operate several prepared functions such as Status, Darker, Tagger, Preset, and Lora.
 - **Status**: The right panel shows ComfyUI status and error information.
@@ -65,7 +65,7 @@ The following custom nodes may also be used within workflows:
 - **FlipStreamInputBox**: An input box for various boxtype inputs. The 'U' button means update. You can choose special boxtype 'seed' or 'r4d' with the 'R' button, which means randomize. The boxtype 'r4d' can be used to generate a 4-digit part of a prompt like 'MOV_{num}'. In this case, FlipStreamTextReplace can help find '{num}' and replace with the output of the input box.
 - **FlipStreamSelectBox_Samplers**: A select box for choosing samplers.
 - **FlipStreamSelectBox_Scheduler**: A select box for choosing schedulers.
-- **FlipStreamFileSelect_Checkpoints**: A file selector for checkpoints. 'mode' is used to select a subfolder such as 'sd15', 'sdxl', 'pony', or 'flux' in 'checkpoints'. If 'use_lora' is true, it will also affect the 'mode' for the Lora selector. 'use_sub' means using subfolders in the 'mode' folder. 'use_move' means using the move file selector.
+- **FlipStreamFileSelect_Checkpoints**: A file selector for checkpoints. 'mode' is used to select a subfolder such as 'sd15', 'sdxl', 'pony', or 'flux' in 'checkpoints'. 'use_sub' means using subfolders in the 'mode' folder. 'use_move' means using the move file selector.
 - **FlipStreamFileSelect_VAE**: A file selector for VAE models.
 - **FlipStreamFileSelect_ControlNetModel**: A file selector for ControlNet models.
 - **FlipStreamFileSelect_TensorRT**: A file selector for TensorRT models. It may be used with ComfyUI_TensorRT.

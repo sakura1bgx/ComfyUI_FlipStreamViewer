@@ -44,7 +44,7 @@ except:
     film = None
 
 try:
-    from custom_nodes.ComfyUI_TensorRT import TensorRTLoader
+    from custom_nodes.comfyui_tensorrt import TensorRTLoader
 except:
     TensorRTLoader = None
 
@@ -55,10 +55,11 @@ def atob(value):
     return base64.b64decode(value.encode()).decode("latin-1")
 
 STREAM_COMPRESSION = 0
+UPDATE_DELAY = 1.0
 allowed_ips = ["127.0.0.1"]
 setparam = {}
-param = {"loramode": "", "lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
-state = {"presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
+param = {"lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
+state = {"presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
 frame_updating = False
 frame_buffer = None
 frame_mtime = 0
@@ -134,6 +135,7 @@ select {
 
 div.row {
     display: flex;
+    position: relative;
 }
 
 .FlipStreamSlider {
@@ -157,6 +159,12 @@ div.row {
 
 .FlipStreamPreviewBox {
     max-width: 100%;
+}
+
+.FlipStreamPreviewRoi {
+    position: absolute;
+    top: 0;
+    left: 0;
 }
 
 #statusInfo {
@@ -327,6 +335,48 @@ function updateParam(reload=false, force_state={}, force_param={}, search="") {
     });
     updateButton.disabled = false;
 }
+
+function setupPreviewRoi() {
+    document.querySelectorAll('.FlipStreamPreviewRoi').forEach(canvas => {
+        const ctx = canvas.getContext('2d');
+        const img = canvas.parentElement.querySelector('img');
+        const label = canvas.id.replace("PreviewRoi", "");
+        img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+        };
+
+        let drawing = false, x, y;
+        canvas.onmousedown = e => { drawing = true; [x, y] = [e.offsetX, e.offsetY]; };
+        canvas.onmousemove = e => { if (drawing) { canvas.width = canvas.width; ctx.strokeStyle = 'red'; ctx.strokeRect(x, y, e.offsetX - x, e.offsetY - y); } };
+        canvas.onmouseup = e => {
+            if (!drawing) return;
+            drawing = false;
+            var sx = x / canvas.width;
+            var sy = y / canvas.height;
+            var ex = e.offsetX / canvas.width;
+            var ey = e.offsetY / canvas.height;
+            if (ex <= sx || ey <= sy) {
+                sx = 0;
+                sy = 0;
+                ex = 1;
+                ey = 1;
+            }
+            fetch('/flipstreamviewer/preview_setroi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    label: label,
+                    sx: sx,
+                    sy: sy,
+                    ex: ex,
+                    ey: ey
+                })
+            });
+        };
+    });
+}
+setupPreviewRoi();
 """
 
 SCRIPT_PRESET=r"""
@@ -901,6 +951,15 @@ async def preview_mtime(request):
     return web.Response(text=str(data))
 
 
+@server.PromptServer.instance.routes.post("/flipstreamviewer/preview_setroi")
+async def preview_setroi(request):
+    if request.remote not in allowed_ips: raise HTTPForbidden()
+    data = await request.json()
+    print("set_roi:", data)
+    param[data['label'] + "PreviewRoi"] = data
+    return web.Response()
+
+
 @server.PromptServer.instance.routes.get("/flipstreamviewer")
 async def viewer(request):
     if request.remote not in allowed_ips:
@@ -970,15 +1029,13 @@ async def viewer(request):
             </select>"""
         block[f"{title}_{label}"] = text_html
 
-    def add_fileselect(title, label, default, folder_name, folder_path, mode, use_lora, use_sub, use_move):
+    def add_fileselect(title, label, default, folder_name, folder_path, mode, use_sub, use_move):
         if not label.isidentifier():
             raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
         if not (mode == "" or mode.isidentifier()):
             raise RuntimeError(f"{title}: mode must contain only valid identifier characters.")
         param.setdefault(label, "")
         state.setdefault(f"{label}Folder", "")
-        if use_lora:
-            param["loramode"] = mode
         text_html = ""
         if use_sub:
             text_html += f"""
@@ -1042,8 +1099,9 @@ async def viewer(request):
             block[f"{title}_{label}"] = f"""
             <div class="row" style="color: lightslategray;">
                 <img class="FlipStreamPreviewBox" id="{label}PreviewBox" name="{label}" src="/flipstreamviewer/preview?label={label}" alt onerror="this.onerror = null; this.src='';" />
+                <canvas class="FlipStreamPreviewRoi" id="{label}PreviewRoi"></canvas>
             </div>"""
-    
+
     hist = server.PromptServer.instance.prompt_queue.get_history(max_items=1)
     nodedict = next(iter(hist.values()))["prompt"][2] if hist else None
     if nodedict:
@@ -1126,19 +1184,19 @@ async def viewer(request):
             <div class="row"><i>Lora</i></div>
             <select id="loraFolderSelect" class="willreload" onchange="updateParam(true)">
                 <option value="" selected>lora folder</option>
-                {"".join([f'<option value="{dir.name}"{" selected" if state["loraFolder"] == dir.name else ""}>{dir.name}</option>' for dir in Path("ComfyUI/models/loras", param["loramode"]).glob("*/")])}
+                {"".join([f'<option value="{dir.name}"{" selected" if state["loraFolder"] == dir.name else ""}>{dir.name}</option>' for dir in Path("ComfyUI/models/loras", state["loraMode"]).glob("*/")])}
             </select>
             <div class="row">
                 <select id="loraFileSelect" onchange="selectLoraFile()">
                     <option value="" disabled selected>lora file</option>
-                    {"".join([f'<option value="{file.name}"{" selected" if state["loraFile"] == file.name else ""}>{file.stem}</option>' for file in Path("ComfyUI/models/loras", param["loramode"], state["loraFolder"]).glob("*.safetensors")])}
+                    {"".join([f'<option value="{file.name}"{" selected" if state["loraFile"] == file.name else ""}>{file.stem}</option>' for file in Path("ComfyUI/models/loras", state["loraMode"], state["loraFolder"]).glob("*.safetensors")])}
                 </select>
                 <button onclick="toggleLora()">T</button>
                 <button onClick="moveLora()">M</button>
             </div>
             <select id="moveLoraSelect" onchange="moveLoraFile()">
                 <option value="" disabled selected>move to</option>
-                {"".join([f'<option value="{dir.name}">{dir.name}</option>' for dir in Path("ComfyUI/models/loras", param["loramode"]).glob("*/")])}
+                {"".join([f'<option value="{dir.name}">{dir.name}</option>' for dir in Path("ComfyUI/models/loras", state["loraMode"]).glob("*/")])}
             </select>
             <div class="row">
                 <select id="loraTagSelect" onchange="toggleTag()">
@@ -1302,6 +1360,7 @@ async def update_param(request):
     param.update(prm)
     param.update(setparam)
     setparam.clear()
+    time.sleep(UPDATE_DELAY)
     return web.Response()
 
 
@@ -1311,7 +1370,7 @@ async def get_lorainfo(request):
         raise HTTPForbidden()
 
     req = await request.json()
-    loraPath = Path("ComfyUI/models/loras", param["loramode"], req["loraFolder"], req["loraFile"])
+    loraPath = Path("ComfyUI/models/loras", state["loraMode"], req["loraFolder"], req["loraFile"])
     hash = None
     with open(loraPath, "rb") as file:
         header_size = int.from_bytes(file.read(8), "little", signed=False)
@@ -1403,8 +1462,8 @@ async def move_lorafile(request):
 
     stt, moveTo = await request.json()
     state.update(stt)
-    pathFrom = Path("ComfyUI/models/loras", param["loramode"], state["loraFolder"], state["loraFile"])
-    pathTo = Path("ComfyUI/models/loras", param["loramode"], moveTo, pathFrom.name)
+    pathFrom = Path("ComfyUI/models/loras", state["loraMode"], state["loraFolder"], state["loraFile"])
+    pathTo = Path("ComfyUI/models/loras", state["loraMode"], moveTo, pathFrom.name)
     Path(pathFrom).rename(pathTo)
     state["loraFolder"] = moveTo
     return web.Response()
@@ -1416,19 +1475,16 @@ async def load_preset(request):
         raise HTTPForbidden()
 
     stt, loraPromptOnly = await request.json()
-    state.update(stt)
-    data = param
-    with open(Path("preset", state["presetFolder"], state["presetFile"]), "r") as file:
+    with open(Path("preset", stt["presetFolder"], stt["presetFile"]), "r") as file:
         buf = json.load(file)
         if loraPromptOnly:
-            if "lora" in buf:
-                data["lora"] = buf["lora"]
-        else:
-            data = buf
+            buf = {"lora": buf.get("lora", "")}
 
-    param.update(data)
+    state.update(stt)
+    param.update(buf)
     state["presetTitle"] = Path(state["presetFile"]).stem
-    return web.json_response({"lora": data["lora"], "presetTitle": state["presetTitle"]})
+    time.sleep(UPDATE_DELAY)
+    return web.json_response({"lora": param["lora"], "presetTitle": state["presetTitle"]})
 
 
 @server.PromptServer.instance.routes.post("/flipstreamviewer/save_preset")
@@ -1436,11 +1492,12 @@ async def save_preset(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
 
-    [stt, data] = await request.json()
+    stt, prm = await request.json()
     state.update(stt)
-    param.update(data)
+    param.update(prm)
+    time.sleep(UPDATE_DELAY)
     with open(Path("preset", state["presetFolder"], state["presetTitle"] + ".json"), "w") as file:
-        json.dump(data, file)
+        json.dump(param, file)
     return web.Response()
 
 
@@ -1628,7 +1685,6 @@ class FlipStreamFileSelect:
                 "folder_name": ([s.FOLDER_NAME],),
                 "folder_path": ([s.FOLDER_PATH],),
                 "mode": ("STRING", {"default": ""}),
-                "use_lora": ("BOOLEAN", {"defalut": False}),
                 "use_sub": ("BOOLEAN", {"defalut": False}),
                 "use_move": ("BOOLEAN", {"defalut": False}),
             }
@@ -1644,7 +1700,7 @@ class FlipStreamFileSelect:
         param.setdefault(label, "")
         return hash((param[label],))
 
-    def run(self, label, default, folder_name, folder_path, **kwargs):
+    def run(self, label, default, folder_path, **kwargs):
         global frame_updating
         frame_updating = True
         param.setdefault(label, "")
@@ -1654,23 +1710,23 @@ class FlipStreamFileSelect:
 
 class FlipStreamFileSelect_Checkpoints(FlipStreamFileSelect):
     FOLDER_NAME = "checkpoints"
-    FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()))
+    FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix())
 
 
 class FlipStreamFileSelect_VAE(FlipStreamFileSelect):
     FOLDER_NAME = "vae"
-    FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()))
+    FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix())
 
 
 class FlipStreamFileSelect_ControlNetModel(FlipStreamFileSelect):
     FOLDER_NAME = "controlnet"
-    FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()))
+    FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix())
 
 
 class FlipStreamFileSelect_TensorRT(FlipStreamFileSelect):
     FOLDER_NAME = "tensorrt"
     try:
-        FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()))
+        FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix())
     except:
         FOLDER_PATH = "_error_ tensorrt folder is not found"
 
@@ -1678,19 +1734,19 @@ class FlipStreamFileSelect_TensorRT(FlipStreamFileSelect):
 class FlipStreamFileSelect_AnimateDiffModel(FlipStreamFileSelect):
     FOLDER_NAME = "animatediff_models"
     try:
-        FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()))
+        FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix())
     except:
         FOLDER_PATH = "_error_ animatediff_models folder is not found"
 
 
 class FlipStreamFileSelect_Input(FlipStreamFileSelect):
     FOLDER_NAME = "input"
-    FOLDER_PATH = str(Path(folder_paths.input_directory).relative_to(Path.cwd()))
+    FOLDER_PATH = str(Path(folder_paths.input_directory).relative_to(Path.cwd()).as_posix())
 
 
 class FlipStreamFileSelect_Output(FlipStreamFileSelect):
     FOLDER_NAME = "output"
-    FOLDER_PATH = str(Path(folder_paths.output_directory).relative_to(Path.cwd()))
+    FOLDER_PATH = str(Path(folder_paths.output_directory).relative_to(Path.cwd()).as_posix())
 
 
 class FlipStreamPreviewBox:
@@ -1781,6 +1837,44 @@ class FlipStreamGetParam:
             if b64dec:
                 value = atob(value)
         return (value,)
+
+
+class FlipStreamGetPreviewRoi:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "label": ("STRING", {"default": "empty"}),
+                "width": ("INT", {"default": 512, "min": 256, "max": 2048, "step": 32}),
+                "height": ("INT", {"default": 512, "min": 256, "max": 2048, "step": 32}),
+                "default_left": ("INT", {"default": 0}),
+                "default_top": ("INT", {"default": 0}),
+                "default_right": ("INT", {"default": 0}),
+                "default_bottom": ("INT", {"default": 0}),
+            },
+        }
+
+    RETURN_TYPES = ("INT", "INT", "INT", "INT", "INT", "INT")
+    RETURN_NAMES = ("left", "top", "right", "bottom", "inner_width", "inner_height")
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    @classmethod
+    def IS_CHANGED(cls, label, **kwargs):
+        roi_data = frozenset(param.get(label + "PreviewRoi", {}).items())
+        return hash(roi_data)
+
+    def run(self, label, default_left, default_top, default_right, default_bottom, width, height):
+        global frame_updating
+        frame_updating = True
+        roi_data = param.get(label + "PreviewRoi", {})
+        left = int(roi_data['sx'] * width) if 'sx' in roi_data else default_left
+        top = int(roi_data['sy'] * height) if 'sy' in roi_data else default_top
+        right = int(width - roi_data['ex'] * width) if 'ex' in roi_data else default_right
+        bottom = int(height - roi_data['ey'] * height) if 'ey' in roi_data else default_bottom
+        inner_width = width - left - right
+        inner_height = height - top - bottom
+        return (left, top, right, bottom, inner_width, inner_height)
 
 
 class FlipStreamImageSize:
@@ -1912,7 +2006,7 @@ class FlipStreamVideoInput:
 
     def run(self, path, first, step, frames):
         if not path or not Path(path).is_file():
-            return (None, False)
+            return (torch.zeros([1, 32, 32, 3]), False)
         try:
             with iio.imopen(path, "r") as file:
                 buf = [file.read(index=i) for i in range(first, first+(frames-1)*step+1, step)]
@@ -1921,7 +2015,7 @@ class FlipStreamVideoInput:
             image = torch.from_numpy(buf) if enable else None
             return (image, enable)
         except:
-            return (None, False)
+            return (torch.zeros([1, 32, 32, 3]), False)
 
 
 class FlipStreamSource:
@@ -1952,17 +2046,9 @@ class FlipStreamSource:
             image = image[:,:,:,:3] * image[:,:,:,3:4]
         if image is not None and image.shape[0] >= frames:
             buf = image[:frames]
-            if height != buf.shape[2]:
-                buf = buf.movedim(-1,1)
-                buf = comfy.utils.common_upscale(buf, round(buf.shape[3] * height / buf.shape[2]), height, "lanczos", "disabled")
-                buf = buf.movedim(1,-1)
-            image = torch.zeros([frames, height, width, 3])
-            x2 = width // 2
-            w2 = buf.shape[2] // 2
-            if (x2 - w2 >= 0):
-                image[:, :, x2-w2:x2+w2] = buf[:, :, :w2*2]
-            else:
-                image = buf[:, :, w2-x2:w2+x2]
+            buf = buf.movedim(-1,1)
+            buf = comfy.utils.common_upscale(buf, width, height, "lanczos", "centor")
+            image = buf.movedim(1,-1)
             if vae:
                 latent = {"samples": vae.encode(image)}
             else:
@@ -2017,6 +2103,37 @@ class FlipStreamSwitchLatent:
         if enable:
             return (latent_enable,)
         return (latent,)
+
+
+class FlipStreamGate:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model": ("MODEL",),
+                "pos": ("CONDITIONING",),
+                "neg": ("CONDITIONING",),
+                "latent": ("LATENT",),
+            },
+            "optional": {
+                "a": (any,),
+                "b": (any,),
+                "c": (any,),
+                "d": (any,),
+                "e": (any,),
+                "f": (any,),
+                "g": (any,),
+                "h": (any,)
+            }
+        }
+
+    RETURN_TYPES = ("MODEL", "CONDITIONING", "CONDITIONING", "LATENT", any, any, any, any, any, any, any, any)
+    RETURN_NAMES = ("model", "pos", "neg", "latent", "a", "b", "c", "d", "e", "f", "g", "h")
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, model, pos, neg, latent, a=None, b=None, c=None, d=None, e=None, f=None, g=None, h=None):
+        return (model, pos, neg, latent, a, b, c, d, e, f, g, h)
 
 
 class FlipStreamRembg:    
@@ -2251,15 +2368,17 @@ class FlipStreamViewer:
                 "wd14exc": ("STRING", {"default": ""}),
                 "idle": ("FLOAT", {"default": 1.0, "min": 0.0}),
                 "fps": ("INT", {"default": 8, "min": 1, "max": 30}),
+                "loramode": ("STRING", {"default": ""}),
             },
         }
 
     @classmethod
-    def IS_CHANGED(cls, allowip, wd14exc, idle, **kwargs):
+    def IS_CHANGED(cls, allowip, wd14exc, idle, loramode, **kwargs):
         global allowed_ips
         global exclude_tags
         allowed_ips = ["127.0.0.1"] + list(map(str.strip, allowip.split(",")))
         exclude_tags = wd14exc
+        state["loraMode"] = loramode
         time.sleep(idle)
         return None
 
@@ -2298,6 +2417,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamPreviewBox": FlipStreamPreviewBox,
     "FlipStreamSetParam": FlipStreamSetParam,
     "FlipStreamGetParam": FlipStreamGetParam,
+    "FlipStreamGetPreviewRoi": FlipStreamGetPreviewRoi,
     "FlipStreamImageSize": FlipStreamImageSize,
     "FlipStreamTextReplace": FlipStreamTextReplace,
     "FlipStreamScreenGrabber": FlipStreamScreenGrabber,
@@ -2305,6 +2425,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamSource": FlipStreamSource,
     "FlipStreamSwitchImage": FlipStreamSwitchImage,
     "FlipStreamSwitchLatent": FlipStreamSwitchLatent,
+    "FlipStreamGate": FlipStreamGate,
     "FlipStreamRembg": FlipStreamRembg,
     "FlipStreamSegMask": FlipStreamSegMask,
     "FlipStreamBatchPrompt": FlipStreamBatchPrompt,
@@ -2329,6 +2450,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamPreviewBox": "FlipStreamPreviewBox",
     "FlipStreamSetParam": "FlipStreamSetParam",
     "FlipStreamGetParam": "FlipStreamGetParam",
+    "FlipStreamGetPreviewRoi": "FlipStreamGetPreviewRoi",
     "FlipStreamImageSize": "FlipStreamImageSize",
     "FlipStreamTextReplace": "FlipStreamTextReplace",
     "FlipStreamScreenGrabber": "FlipStreamScreenGrabber",
@@ -2336,6 +2458,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamSource": "FlipStreamSource",
     "FlipStreamSwitchImage": "FlipStreamSwitchImage",
     "FlipStreamSwitchLatent": "FlipStreamSwitchLatent",
+    "FlipStreamGate": "FlipStreamGate",
     "FlipStreamRembg": "FlipStreamRembg",
     "FlipStreamSegMask": "FlipStreamSegMask",
     "FlipStreamBatchPrompt": "FlipStreamBatchPrompt",
