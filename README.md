@@ -40,6 +40,17 @@ The following custom nodes may also be used within workflows:
 - ComfyUI-DepthAnythingV2
 - ComfyUI-Advanced-ControlNet
 
+## Optional Python Packages Dependencies
+
+llama-cpp-python for FlipStreamLoadChatModel in a Windows environment with an NVIDIA GPU:
+```
+cd python_embeded
+python -m pip install scikit-build-core
+python -m pip install cmake
+set CMAKE_ARGS="-DGGML_CUDA=on"
+python -m pip install llama-cpp-python
+```
+
 ## UI Features
 
 - **Customizable Left Panel**: The left panel UI is customizable with UI Nodes.
