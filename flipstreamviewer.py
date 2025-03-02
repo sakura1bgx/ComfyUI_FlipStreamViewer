@@ -24,8 +24,7 @@ import comfy
 from nodes import CheckpointLoaderSimple, VAELoader
 
 try:
-    from llama_cpp import Llama
-    
+    from llama_cpp import Llama  # llama-cpp-python
 except:
     Llama = None
 
@@ -2334,7 +2333,7 @@ class FlipStreamSegMask:
         return (mask_tensor, mask_tensor[:,:,:,0])
 
 
-class FlipStreamChatLoad:
+class FlipStreamLoadChatModel:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -2600,7 +2599,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamGate": FlipStreamGate,
     "FlipStreamRembg": FlipStreamRembg,
     "FlipStreamSegMask": FlipStreamSegMask,
-    "FlipStreamChatLoad": FlipStreamChatLoad,
+    "FlipStreamLoadChatModel": FlipStreamLoadChatModel,
     "FlipStreamChat": FlipStreamChat,
     "FlipStreamBatchPrompt": FlipStreamBatchPrompt,
     "FlipStreamFilmVfi": FlipStreamFilmVfi,
@@ -2637,7 +2636,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamGate": "FlipStreamGate",
     "FlipStreamRembg": "FlipStreamRembg",
     "FlipStreamSegMask": "FlipStreamSegMask",
-    "FlipStreamChatLoad": "FlipStreamChatLoad",
+    "FlipStreamLoadChatModel": "FlipStreamLoadChatModel",
     "FlipStreamChat": "FlipStreamChat",
     "FlipStreamBatchPrompt": "FlipStreamBatchPrompt",
     "FlipStreamFilmVfi": "FlipStreamFilmVfi",
