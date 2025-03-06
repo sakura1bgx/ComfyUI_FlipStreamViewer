@@ -2338,7 +2338,7 @@ class FlipStreamSegMask:
         return (mask_tensor, mask_tensor[:,:,:,0])
 
 
-class FlipStreamLoadChatModel:
+class FlipStreamChat:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -2346,37 +2346,7 @@ class FlipStreamLoadChatModel:
                 "model_file": ("STRING", {"default": [path.name for path in Path(folder_paths.models_dir, "LLM").glob("*.gguf")]}),
                 "n_ctx": ("INT", {"default": 2048}),
                 "n_gpu_layers": ("INT", {"default": -1}),
-            }
-        }
-
-    RETURN_TYPES = ("CHAT_MODEL",)
-    RETURN_NAMES =("chat_model",) 
-    FUNCTION = "run"
-    CATEGORY = "FlipStreamViewer"
-
-    def __init__(self):
-        self.model = None
-        self.lasthash = None
-
-    def run(self, model_file, n_ctx, n_gpu_layers):
-        h = hash((model_file, n_ctx, n_gpu_layers))
-        if self.lasthash != h:
-            self.lasthash = h
-            model_path = Path(folder_paths.models_dir, "LLM", model_file)
-            if not model_path.exists():
-                raise RuntimeError(f"FlipStreamLlamaModel: {model_path} not found.")
-            if Llama is None:
-                raise RuntimeError("FlipStreamLlamaModel: cannot import llama-cpp-python")
-            self.model = Llama(str(model_path), chat_format="llama-2", n_ctx=n_ctx, n_gpu_layers=n_gpu_layers, verbose=False)
-        return (self.model,)
-
-
-class FlipStreamChat:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "chat_model": ("CHAT_MODEL",),
+                "close_after_use": ("BOOLEAN", {"default": False}),
                 "system": ("STRING", {"default": "", "multiline": True}),
                 "user": ("STRING", {"default": "", "multiline": True}),
                 "instant": ("BOOLEAN", {"default": False}),
@@ -2391,20 +2361,39 @@ class FlipStreamChat:
                 "repeat_penalty": ("FLOAT", {"default": 1.0, "min": 0})
             },
             "optional": {
+                "chat_model": ("CHAT_MODEL",),
                 "messages": ("MESSAGES",)
             }
         }
 
-    RETURN_TYPES = ("STRING", "MESSAGES")
-    RETURN_NAMES =("response", "messages")
+    RETURN_TYPES = ("CHAT_MODEL", "STRING", "MESSAGES")
+    RETURN_NAMES =("chat_model", "response", "messages")
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
     def __init__(self):
+        self.model = None
+        self.lasthash = None
         self.messages = []
         self.system = None
 
-    def chat(self, chat_model, system, user, stop, messages, **kwargs):
+    def load_model(self, model_file, n_ctx, n_gpu_layers):
+        h = hash((model_file, n_ctx, n_gpu_layers))
+        if self.model is None or self.model._is_closed or self.lasthash != h:
+            self.lasthash = h
+            model_path = Path(folder_paths.models_dir, "LLM", model_file)
+            if not model_path.exists():
+                raise RuntimeError(f"FlipStreamChat: {model_path} not found.")
+            if Llama is None:
+                raise RuntimeError("FlipStreamChat: llama-cpp-python required.")
+            self.model = Llama(str(model_path), chat_format="llama-2", n_ctx=n_ctx, n_gpu_layers=n_gpu_layers, verbose=False)
+            self.model._is_closed = False
+
+    def close_model(self):
+        self.model.close()
+        self.model._is_closed = True
+
+    def chat(self, system, user, stop, messages, **kwargs):
         if system != self.system:
             self.system = system
             messages.clear()
@@ -2414,25 +2403,30 @@ class FlipStreamChat:
             messages[0] = dict(role="system", content=system)
         if user:
             messages.append(dict(role="user", content=user))
-        return chat_model.create_chat_completion(messages, stop=list(filter(str.strip, stop.split(","))), **kwargs)["choices"][0]["message"]
+        return self.model.create_chat_completion(messages, stop=list(filter(str.strip, stop.split(","))), **kwargs)["choices"][0]["message"]
 
-    def run(self, chat_model, system, user, instant, max_history, stop, messages=None, **kwargs):
+    def run(self, model_file, n_ctx, n_gpu_layers, close_after_use, system, user, instant, max_history, stop, chat_model=None, messages=None, **kwargs):
+        if chat_model is not None:
+            self.model = chat_model
         if messages is None:
             messages = self.messages
         if max_history == 0:
             messages.clear()
         elif max_history >= 1:
             messages[:] = messages[-max_history:]
+        self.load_model(model_file, n_ctx, n_gpu_layers)
         if instant:
-            res = self.chat(chat_model, system, user, stop, messages.copy(), **kwargs)
+            res = self.chat(system, user, stop, messages.copy(), **kwargs)
             output = res["content"]
         else:
-            res = self.chat(chat_model, system, user, stop, messages, **kwargs)
+            res = self.chat(system, user, stop, messages, **kwargs)
             output = res["content"]
             if res["role"] == "assistant":
                 messages.append(dict(role="assistant", content=output))
         self.messages = messages
-        return (output, messages)
+        if close_after_use:
+            self.close_model()
+        return (self.model, output, messages)
 
 
 class FlipStreamBatchPrompt:
@@ -2608,7 +2602,6 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamGate": FlipStreamGate,
     "FlipStreamRembg": FlipStreamRembg,
     "FlipStreamSegMask": FlipStreamSegMask,
-    "FlipStreamLoadChatModel": FlipStreamLoadChatModel,
     "FlipStreamChat": FlipStreamChat,
     "FlipStreamBatchPrompt": FlipStreamBatchPrompt,
     "FlipStreamFilmVfi": FlipStreamFilmVfi,
@@ -2645,7 +2638,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamGate": "FlipStreamGate",
     "FlipStreamRembg": "FlipStreamRembg",
     "FlipStreamSegMask": "FlipStreamSegMask",
-    "FlipStreamLoadChatModel": "FlipStreamLoadChatModel",
     "FlipStreamChat": "FlipStreamChat",
     "FlipStreamBatchPrompt": "FlipStreamBatchPrompt",
     "FlipStreamFilmVfi": "FlipStreamFilmVfi",
