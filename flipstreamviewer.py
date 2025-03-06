@@ -2286,19 +2286,18 @@ class FlipStreamSegMask:
                 snapshot_download(repo_id=model_id, local_dir=str(model_path), local_dir_use_symlinks=False)
             
         # Load model
-        mm = comfy.model_management
         if FlipStreamSegMask.model is None:
             FlipStreamSegMask.model = transformers.AutoModelForCausalLM.from_pretrained(
                 model_id,
                 trust_remote_code=True,
                 attn_implementation='sdpa',
-                device_map=mm.get_torch_device(),
+                device_map=comfy.model_management.get_torch_device(),
                 torch_dtype=torch.bfloat16
             )
             FlipStreamSegMask.processor = transformers.AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
         model = FlipStreamSegMask.model
         processor = FlipStreamSegMask.processor
-        model.to(mm.get_torch_device())
+        model.to(comfy.model_management.get_torch_device())
 
         # Process prompt for each target
         task_prompt = '<REFERRING_EXPRESSION_SEGMENTATION>'
@@ -2343,9 +2342,10 @@ class FlipStreamChat:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "model_file": ("STRING", {"default": [path.name for path in Path(folder_paths.models_dir, "LLM").glob("*.gguf")]}),
+                "model_file": ([path.name for path in Path(folder_paths.models_dir, "LLM").glob("*.gguf")],),
                 "n_ctx": ("INT", {"default": 2048}),
                 "n_gpu_layers": ("INT", {"default": -1}),
+                "unload_other_models": ("BOOLEAN", {"default": False}),
                 "close_after_use": ("BOOLEAN", {"default": False}),
                 "system": ("STRING", {"default": "", "multiline": True}),
                 "user": ("STRING", {"default": "", "multiline": True}),
@@ -2373,25 +2373,24 @@ class FlipStreamChat:
 
     def __init__(self):
         self.model = None
-        self.lasthash = None
         self.messages = []
         self.system = None
 
     def load_model(self, model_file, n_ctx, n_gpu_layers):
         h = hash((model_file, n_ctx, n_gpu_layers))
-        if self.model is None or self.model._is_closed or self.lasthash != h:
-            self.lasthash = h
+        if self.model is None or self.model._FlipStreamChat_is_closed or self.model._FlipStreamChat_last_hash != h:
             model_path = Path(folder_paths.models_dir, "LLM", model_file)
             if not model_path.exists():
                 raise RuntimeError(f"FlipStreamChat: {model_path} not found.")
             if Llama is None:
                 raise RuntimeError("FlipStreamChat: llama-cpp-python required.")
             self.model = Llama(str(model_path), chat_format="llama-2", n_ctx=n_ctx, n_gpu_layers=n_gpu_layers, verbose=False)
-            self.model._is_closed = False
+            self.model._FlipStreamChat_is_closed = False
+            self.model._FlipStreamChat_last_hash = h
 
     def close_model(self):
         self.model.close()
-        self.model._is_closed = True
+        self.model._FlipStreamChat_is_closed = True
 
     def chat(self, system, user, stop, messages, **kwargs):
         if system != self.system:
@@ -2405,7 +2404,17 @@ class FlipStreamChat:
             messages.append(dict(role="user", content=user))
         return self.model.create_chat_completion(messages, stop=list(filter(str.strip, stop.split(","))), **kwargs)["choices"][0]["message"]
 
-    def run(self, model_file, n_ctx, n_gpu_layers, close_after_use, system, user, instant, max_history, stop, chat_model=None, messages=None, **kwargs):
+    def run(self, model_file, n_ctx, n_gpu_layers, unload_other_models, close_after_use, system, user, instant, max_history, stop, chat_model=None, messages=None, **kwargs):
+        if unload_other_models:
+            comfy.model_management.unload_all_models()
+            comfy.model_management.soft_empty_cache(True)
+            try:
+                comfy.gc.collect()
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+            except:
+                pass
+            time.sleep(2)
         if chat_model is not None:
             self.model = chat_model
         if messages is None:
@@ -2502,9 +2511,8 @@ class FlipStreamFilmVfi:
             model = torch.jit.load(model_path, map_location="cpu")
             model.eval()
             FlipStreamFilmVfi.model = model
-        mm = comfy.model_management
         model = FlipStreamFilmVfi.model
-        model = model.to(mm.get_torch_device())
+        model = model.to(comfy.model_management.get_torch_device())
         dtype = torch.float32
 
         frames = film.preprocess_frames(frames)
@@ -2512,8 +2520,8 @@ class FlipStreamFilmVfi:
         output_frames = []
         
         for frame_itr in range(len(frames) - 1):
-            frame_0 = frames[frame_itr:frame_itr+1].to(mm.get_torch_device()).float()
-            frame_1 = frames[frame_itr+1:frame_itr+2].to(mm.get_torch_device()).float()
+            frame_0 = frames[frame_itr:frame_itr+1].to(comfy.model_management.get_torch_device()).float()
+            frame_1 = frames[frame_itr+1:frame_itr+2].to(comfy.model_management.get_torch_device()).float()
             relust = film.inference(model, frame_0, frame_1, multiplier - 1)
             output_frames.extend([frame.detach().cpu().to(dtype=dtype) for frame in relust[:-1]])
 
