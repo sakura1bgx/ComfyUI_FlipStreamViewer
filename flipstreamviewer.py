@@ -902,12 +902,17 @@ async function setFrame() {
 """
 
 SCRIPT_QUERY=r"""
-function onInputDarker(value) {
+function onInputDarker(value=-1) {
     value = parseFloat(value);
-    document.getElementById("darkerRange").value = value;
+    if (value < 0) {
+        value = document.getElementById("darkerRange").value;
+    } else {
+        document.getElementById("darkerRange").value = value;
+    }
     document.getElementById("darkerValue").innerText = value; 
     document.body.style.backgroundColor = 'rgba(0,0,0,' + value + ')';
 }
+onInputDarker();
 
 function reloadPage(search="") {
     if (search) {
@@ -1157,7 +1162,7 @@ async def viewer(request):
             <div id="statusInfo"></div>
             <div class="row"><i>Darker</i></div>
             <div class="row">
-                <input id="darkerRange" type="range" min="0" max="1" step="0.01" value="{state["darker"]}" oninput="onInputDarker(this.value);" />
+                <input id="darkerRange" type="range" min="0" max="1" step="0.01" value="{state["darker"]}" oninput="onInputDarker();" />
                 <span id="darkerValue">{state["darker"]}</span>drk
             </div>
             <div class="row"><i>Tagger</i></div>
@@ -2339,7 +2344,6 @@ class FlipStreamLoadChatModel:
         return {
             "required": {
                 "model_file": ("STRING", {"default": [path.name for path in Path(folder_paths.models_dir, "LLM").glob("*.gguf")]}),
-                "seed": ("INT", {"default": 0}),
                 "n_ctx": ("INT", {"default": 2048}),
                 "n_gpu_layers": ("INT", {"default": -1}),
             }
@@ -2354,8 +2358,8 @@ class FlipStreamLoadChatModel:
         self.model = None
         self.lasthash = None
 
-    def run(self, model_file, seed, n_ctx, n_gpu_layers):
-        h = hash((model_file, seed, n_ctx, n_gpu_layers))
+    def run(self, model_file, n_ctx, n_gpu_layers):
+        h = hash((model_file, n_ctx, n_gpu_layers))
         if self.lasthash != h:
             self.lasthash = h
             model_path = Path(folder_paths.models_dir, "LLM", model_file)
@@ -2363,7 +2367,7 @@ class FlipStreamLoadChatModel:
                 raise RuntimeError(f"FlipStreamLlamaModel: {model_path} not found.")
             if Llama is None:
                 raise RuntimeError("FlipStreamLlamaModel: cannot import llama-cpp-python")
-            self.model = Llama(str(model_path), seed=seed, chat_format="llama-2", n_ctx=n_ctx, n_gpu_layers=n_gpu_layers, verbose=False)
+            self.model = Llama(str(model_path), chat_format="llama-2", n_ctx=n_ctx, n_gpu_layers=n_gpu_layers, verbose=False)
         return (self.model,)
 
 
@@ -2376,10 +2380,15 @@ class FlipStreamChat:
                 "system": ("STRING", {"default": "", "multiline": True}),
                 "user": ("STRING", {"default": "", "multiline": True}),
                 "instant": ("BOOLEAN", {"default": False}),
-                "max_history": ("INT", {"default": 5, "min": -1}),
-                "max_tokens": ("INT", {"default": 32, "min": 0}),
-                "temperature": ("FLOAT", {"default": 0, "min": 0}),
-                "stop": ("STRING", {"default": ""}),
+                "max_history": ("INT", {"default": 10, "min": -1}),
+                "stop": ("STRING", {"default": "[,<"}),
+                "temperature": ("FLOAT", {"default": 0.2, "min": 0}),
+                "top_p": ("FLOAT", {"default": 0.95, "min": 0}),
+                "seed": ("INT", {"default": -1}),
+                "max_tokens": ("INT", {"default": 128, "min": 0}),
+                "presence_penalty": ("FLOAT", {"default": 0, "min": 0}),
+                "frequency_penalty": ("FLOAT", {"default": 0, "min": 0}),
+                "repeat_penalty": ("FLOAT", {"default": 1.0, "min": 0})
             },
             "optional": {
                 "messages": ("MESSAGES",)
@@ -2395,7 +2404,7 @@ class FlipStreamChat:
         self.messages = []
         self.system = None
 
-    def chat(self, chat_model, system, user, max_tokens, temperature, stop, messages):
+    def chat(self, chat_model, system, user, stop, messages, **kwargs):
         if system != self.system:
             self.system = system
             messages.clear()
@@ -2405,9 +2414,9 @@ class FlipStreamChat:
             messages[0] = dict(role="system", content=system)
         if user:
             messages.append(dict(role="user", content=user))
-        return chat_model.create_chat_completion(messages, max_tokens=max_tokens, temperature=temperature, stop=list(filter(str.strip, stop.split(","))))["choices"][0]["message"]
+        return chat_model.create_chat_completion(messages, stop=list(filter(str.strip, stop.split(","))), **kwargs)["choices"][0]["message"]
 
-    def run(self, chat_model, system, user, instant, max_history, max_tokens, temperature, stop, messages=None):
+    def run(self, chat_model, system, user, instant, max_history, stop, messages=None, **kwargs):
         if messages is None:
             messages = self.messages
         if max_history == 0:
@@ -2415,10 +2424,10 @@ class FlipStreamChat:
         elif max_history >= 1:
             messages[:] = messages[-max_history:]
         if instant:
-            res = self.chat(chat_model, system, user, max_tokens, temperature, stop, messages.copy())
+            res = self.chat(chat_model, system, user, stop, messages.copy(), **kwargs)
             output = res["content"]
         else:
-            res = self.chat(chat_model, system, user, max_tokens, temperature, stop, messages)
+            res = self.chat(chat_model, system, user, stop, messages, **kwargs)
             output = res["content"]
             if res["role"] == "assistant":
                 messages.append(dict(role="assistant", content=output))
