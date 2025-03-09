@@ -246,14 +246,14 @@ div.row {
 
 #toggleViewButton {
     width: 100%;
-    height: 80%;
+    height: 85%;
     border: none;
     background: transparent;
 }
 
 #messageBox {
     width: 100%;
-    height: 20%;
+    height: 15%;
     border: none;
     background: transparent;
     font-size: 1.5rem;
@@ -2140,14 +2140,37 @@ class FlipStreamSource:
         return (image, latent,)
 
 
+class FlipStreamSwitch:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "value": (any,),
+            },
+            "optional": {
+                "value_enable": (any,),
+                "enable": ("BOOLEAN",),
+            }
+        }
+
+    RETURN_TYPES = (any,)
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, value=None, value_enable=None, enable=None):
+        if enable:
+            return (value_enable,)
+        return (value,)
+
+
 class FlipStreamSwitchImage:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
+                "image": ("IMAGE",),
             },
             "optional": {
-                "image": ("IMAGE",),
                 "image_enable": ("IMAGE",),
                 "enable": ("BOOLEAN",),
             }
@@ -2414,7 +2437,6 @@ class FlipStreamChat:
                 torch.cuda.ipc_collect()
             except:
                 pass
-            time.sleep(2)
         if chat_model is not None:
             self.model = chat_model
         if messages is None:
@@ -2605,6 +2627,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamScreenGrabber": FlipStreamScreenGrabber,
     "FlipStreamVideoInput": FlipStreamVideoInput,
     "FlipStreamSource": FlipStreamSource,
+    "FlipStreamSwitch": FlipStreamSwitch,
     "FlipStreamSwitchImage": FlipStreamSwitchImage,
     "FlipStreamSwitchLatent": FlipStreamSwitchLatent,
     "FlipStreamGate": FlipStreamGate,
@@ -2641,6 +2664,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamScreenGrabber": "FlipStreamScreenGrabber",
     "FlipStreamVideoInput": "FlipStreamVideoInput",
     "FlipStreamSource": "FlipStreamSource",
+    "FlipStreamSwitch": "FlipStreamSwitch",
     "FlipStreamSwitchImage": "FlipStreamSwitchImage",
     "FlipStreamSwitchLatent": "FlipStreamSwitchLatent",
     "FlipStreamGate": "FlipStreamGate",
