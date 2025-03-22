@@ -1222,7 +1222,7 @@ async def viewer(request):
             </select>
             <div class="row">
                 <select id="loraTagSelect" onchange="toggleTag()">
-                    <option value="" disabled selected>tags</option>
+                    <option value="">tags</option>
                     {"".join([f'<option value="{opt["value"]}"{" selected" if state["loraTag"] == opt["value"] else ""}>{opt["text"]}</option>' if opt["value"] else "" for opt in json.loads(state["loraTagOptions"])])}
                 </select>
                 <button onclick="toggleTag()">T</button>
