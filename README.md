@@ -42,7 +42,7 @@ The following custom nodes may also be used within workflows:
 
 ## Optional Python Packages Dependencies
 
-llama-cpp-python for FlipStreamLoadChatModel in a Windows environment with an NVIDIA GPU:
+llama-cpp-python for FlipStreamLoadChatModel:
 ```
 cd python_embeded
 python -m pip install scikit-build-core
