@@ -24,6 +24,11 @@ import comfy
 from nodes import CheckpointLoaderSimple, VAELoader
 
 try:
+    from llama_cpp import Llama  # llama-cpp-python
+except:
+    Llama = None
+
+try:
     wd14tagger = __import__("comfyui-wd14-tagger").wd14tagger
 except:
     wd14tagger = None
@@ -48,18 +53,19 @@ try:
 except:
     TensorRTLoader = None
 
-def btoa(value):
-    return base64.b64encode(value.encode("latin-1")).decode()
+def btoa_utf8(value):
+    return base64.b64encode(value.encode("utf-8")).decode()
 
-def atob(value):
-    return base64.b64decode(value.encode()).decode("latin-1")
+def atob_utf8(value):
+    return base64.b64decode(value.encode()).decode("utf-8")
 
 STREAM_COMPRESSION = 0
 UPDATE_DELAY = 1.0
 allowed_ips = ["127.0.0.1"]
 setparam = {}
+setstate = {}
 param = {"lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
-state = {"presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
+state = {"message": btoa_utf8(""), "update_and_reload": False, "presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
 frame_updating = False
 frame_buffer = None
 frame_mtime = 0
@@ -240,9 +246,26 @@ div.row {
 
 #toggleViewButton {
     width: 100%;
-    height: 100%;
+    height: 85%;
     border: none;
     background: transparent;
+}
+
+#messageBox {
+    width: 100%;
+    height: 15%;
+    border: none;
+    background: transparent;
+    font-size: 1.5rem;
+    text-shadow: 
+    black 2px 0px,  black -2px 0px,
+    black 0px -2px, black 0px 2px,
+    black 2px 2px , black -2px 2px,
+    black 2px -2px, black -2px -2px,
+    black 1px 2px,  black -1px 2px,
+    black 1px -2px, black -1px -2px,
+    black 2px 1px,  black -2px 1px,
+    black 2px -1px, black -2px -1px;
 }
 
 #loraLink img {
@@ -266,6 +289,14 @@ div.row {
 """
 
 SCRIPT_PARAM=r"""
+function btoa_utf8(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+}
+
+function atob_utf8(str) {
+    return decodeURIComponent(escape(atob(str)));
+}
+
 function getStateAsJson(force_state={}) {
     const presetTitle = document.getElementById("presetTitleInput").value;
     const presetFolder = document.getElementById("presetFolderSelect").value;
@@ -289,14 +320,14 @@ function getStateAsJson(force_state={}) {
 }
 
 function getParamAsJson(force_param={}) {
-    const lora = btoa(document.getElementById("loraInput").value.trim());
+    const lora = btoa_utf8(document.getElementById("loraInput").value.trim());
     const _capture_offsetX = parseInt(document.getElementById("offsetXRange").value);
     const _capture_offsetY = parseInt(document.getElementById("offsetYRange").value);
     const _capture_scale = parseInt(document.getElementById("scaleRange").value);
 
     var res = { lora: lora, _capture_offsetX: _capture_offsetX, _capture_offsetY: _capture_offsetY, _capture_scale: _capture_scale }
     document.querySelectorAll('.FlipStreamSlider').forEach(x => res[x.name] = x.value);
-    document.querySelectorAll('.FlipStreamTextBox').forEach(x => res[x.name] = btoa(x.value));
+    document.querySelectorAll('.FlipStreamTextBox').forEach(x => res[x.name] = btoa_utf8(x.value));
     document.querySelectorAll('.FlipStreamInputBox').forEach(x => res[x.name] = x.value);
     document.querySelectorAll('.FlipStreamSelectBox').forEach(x => res[x.name] = x.value);
     document.querySelectorAll('.FlipStreamFileSelect').forEach(x => res[x.name] = x.value);
@@ -387,7 +418,7 @@ function loadPreset(loraPromptOnly=false, force_state={}, search="") {
         headers: {"Content-Type": "application/json"}
     }).then(response => response.json()).then(json => {
         if (loraPromptOnly) {
-            document.getElementById("loraInput").value = atob(json.lora);
+            document.getElementById("loraInput").value = atob_utf8(json.lora);
             document.getElementById("presetTitleInput").value = json.presetTitle;
         }
         else {
@@ -750,6 +781,7 @@ function toggleView() {
     const rightPanel = document.getElementById("rightPanel");
     const presetLeftPanel = document.getElementById("presetLeftPanel");
     const presetRightPanel = document.getElementById("presetRightPanel");
+    const messageBox = document.getElementById("messageBox");
     if (toggleViewFlag) {
         leftPanel.style.visibility = "hidden";
         rightPanel.style.visibility = "hidden";
@@ -758,6 +790,7 @@ function toggleView() {
         toggleViewFlag = false;
     } else {
         document.body.style.backgroundImage = "none";
+        messageBox.style.visibility = "hidden";
         document.getElementById("loraPreview").src = "";
         document.querySelectorAll('.FlipStreamPreviewBox').forEach(x => x.src = "");
         leftPanel.style.visibility = "visible";
@@ -773,8 +806,11 @@ function hideView() {
     const rightPanel = document.getElementById("rightPanel");
     const presetLeftPanel = document.getElementById("presetLeftPanel");
     const presetRightPanel = document.getElementById("presetRightPanel");
+    const messageBox = document.getElementById("messageBox");
     closeCaptureDialog();
     document.body.style.backgroundImage = "none";
+    messageBox.style.visibility = "hidden";
+    document.getElementById("loraPreview").src = "";
     document.querySelectorAll('.FlipStreamPreviewBox').forEach(x => x.src = "");
     leftPanel.style.visibility = "hidden";
     rightPanel.style.visibility = "hidden";
@@ -785,21 +821,21 @@ function hideView() {
 setTimeout(hideView, 300 * 1000);
 
 async function refreshView() {
-    document.getElementById("statusInfo").innerText = await fetch("/flipstreamviewer/get_status")
-        .then(response => response.text())
-        .catch(() => "Fails to get status.");
-
+    const data = await fetch("/flipstreamviewer/refresh_view")
+        .then(r => r.json()).catch(e => ({ status: "Fails to refresh view: " + e }));
+    document.getElementById("statusInfo").textContent = data.status_info || "Empty";
+    document.getElementById("messageBox").textContent = atob_utf8(data.message) || "";
     if (document.body.style.backgroundImage != "none") {
-        const mtime = await (await fetch("/flipstreamviewer/stream_mtime")).text();
-        document.body.style.backgroundImage = `url('/flipstreamviewer/stream?mtime=${mtime}')`;
+        document.body.style.backgroundImage = `url('/flipstreamviewer/stream?mtime=${data.stream_mtime || 0}')`;
     }
-
     document.querySelectorAll('.FlipStreamPreviewBox').forEach(async x => {
         if (x.src != "") {
-            const mtime = await (await fetch(`/flipstreamviewer/preview_mtime?label=${x.name}`)).text();
-            x.src = `/flipstreamviewer/preview?label=${x.name}&mtime=${mtime}`;
+            x.src = `/flipstreamviewer/preview?label=${x.name}&mtime=${data.preview_mtime[x.id] || 0}`;
         }
     });
+    if (data.update_and_reload) {
+        updateParam(true);
+    }
 }
 setInterval(refreshView, 1000);
 """
@@ -866,15 +902,24 @@ async function setFrame() {
 """
 
 SCRIPT_QUERY=r"""
-function onInputDarker(value) {
+function onInputDarker(value=-1) {
     value = parseFloat(value);
-    document.getElementById("darkerRange").value = value;
+    if (value < 0) {
+        value = document.getElementById("darkerRange").value;
+    } else {
+        document.getElementById("darkerRange").value = value;
+    }
     document.getElementById("darkerValue").innerText = value; 
     document.body.style.backgroundColor = 'rgba(0,0,0,' + value + ')';
 }
+onInputDarker();
 
 function reloadPage(search="") {
-    location.replace(location.pathname + search && "?" + search);
+    if (search) {
+        location.replace(location.pathname + "?" + search);
+    } else {
+        location.reload();
+    }
 }
 
 function parseQueryParam() {
@@ -914,14 +959,6 @@ async def stream(request):
     return web.Response(body=frame_buffer, headers={"Content-Type": "image/apng"})
 
 
-@server.PromptServer.instance.routes.get("/flipstreamviewer/stream_mtime")
-async def stream_mtime(request):
-    if request.remote not in allowed_ips:
-        raise HTTPForbidden()
-
-    return web.Response(text=str(frame_mtime))
-
-
 @server.PromptServer.instance.routes.get("/flipstreamviewer/preview")
 async def preview(request):
     if request.remote not in allowed_ips:
@@ -934,21 +971,6 @@ async def preview(request):
     else:
         data = b""
     return web.Response(body=data, headers={"Content-Type": "image/png"})
-
-
-@server.PromptServer.instance.routes.get("/flipstreamviewer/preview_mtime")
-async def preview_mtime(request):
-    if request.remote not in allowed_ips:
-        raise HTTPForbidden()
-
-    label = request.rel_url.query.get('label', '')
-    key = label + "PreviewBox"
-    if key in state:
-        data = state[key][0]
-    else:
-        data = 0
-
-    return web.Response(text=str(data))
 
 
 @server.PromptServer.instance.routes.post("/flipstreamviewer/preview_setroi")
@@ -986,7 +1008,7 @@ async def viewer(request):
             raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
         param.setdefault(label, default)
         block[f"{title}_{label}"] = f"""
-            <textarea class="FlipStreamTextBox" id="{label}TextBox" style="color: lightslategray;" placeholder="{label}" rows="{rows}" name="{label}">{atob(param[label])}</textarea>"""
+            <textarea class="FlipStreamTextBox" id="{label}TextBox" style="color: lightslategray;" placeholder="{label}" rows="{rows}" name="{label}">{atob_utf8(param[label])}</textarea>"""
 
     def add_inputbox(title, label, default, boxtype):
         if not label.isidentifier():
@@ -1133,13 +1155,14 @@ async def viewer(request):
         </div>
         <div id="centerPanel">
             <button id="toggleViewButton" onclick="toggleView()"></button>
+            <div id="messageBox" onclick="toggleView()"></div>
         </div>
         <div id="rightPanel">
             <div class="row"><i>Status</i></div>
             <div id="statusInfo"></div>
             <div class="row"><i>Darker</i></div>
             <div class="row">
-                <input id="darkerRange" type="range" min="0" max="1" step="0.01" value="{state["darker"]}" oninput="onInputDarker(this.value);" />
+                <input id="darkerRange" type="range" min="0" max="1" step="0.01" value="{state["darker"]}" oninput="onInputDarker();" />
                 <span id="darkerValue">{state["darker"]}</span>drk
             </div>
             <div class="row"><i>Tagger</i></div>
@@ -1199,7 +1222,7 @@ async def viewer(request):
             </select>
             <div class="row">
                 <select id="loraTagSelect" onchange="toggleTag()">
-                    <option value="" disabled selected>tags</option>
+                    <option value="">tags</option>
                     {"".join([f'<option value="{opt["value"]}"{" selected" if state["loraTag"] == opt["value"] else ""}>{opt["text"]}</option>' if opt["value"] else "" for opt in json.loads(state["loraTagOptions"])])}
                 </select>
                 <button onclick="toggleTag()">T</button>
@@ -1244,7 +1267,7 @@ async def viewer(request):
                 <button onclick="clearLoraInput()">Clr</button>
                 <button onclick="showTagDialog();tagCSel();tagRSel();tagOK();updateParam()">R</button>
             </div>
-            <textarea id="loraInput" placeholder="Enter lora" rows="12">{atob(param["lora"])}</textarea>
+            <textarea id="loraInput" placeholder="Enter lora" rows="12">{atob_utf8(param["lora"])}</textarea>
             <div class="row">
                 <a id="loraLink" href="{state["loraLinkHref"] or "javascript:void(0)"}" target="_blank">
                     <img id="loraPreview" src="{state["loraPreviewSrc"]}" alt onerror="this.onerror = null; this.src='';" />
@@ -1298,6 +1321,7 @@ async def viewer(request):
         </div>
         <div id="presetCenterPanel">
             <button id="toggleViewButton" onclick="toggleView()"></button>
+            <div id="messageBox" onclick="toggleView()"></div>
         </div>
         <div id="presetRightPanel">
             <div class="row">
@@ -1330,23 +1354,34 @@ async def viewer(request):
     return web.Response(text=text_html, content_type="text/html")
 
 
-@server.PromptServer.instance.routes.get("/flipstreamviewer/get_status")
+@server.PromptServer.instance.routes.get("/flipstreamviewer/refresh_view")
 async def get_status(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
 
+    # Get status info from history
     remain = server.PromptServer.instance.prompt_queue.get_tasks_remaining()
     hist = server.PromptServer.instance.prompt_queue.get_history(max_items=1)
-    status = []
+    status_info = []
     if frame_updating:
-        status.append("updating")
-    status.append(f"q{remain}")
+        status_info.append("updating")
+    status_info.append(f"q{remain}")
     info = next(iter(hist.values()))["status"] if hist else None
     if info:
         errinfo = info["messages"][2][1]
-        status.append(info["status_str"])
-        status += [errinfo[key] for key in ["node_id", "node_type", "exception_message", "exception_type"] if key in errinfo]
-    return web.Response(text=":".join(status))
+        status_info.append(info["status_str"])
+        status_info += [errinfo[key] for key in ["node_id", "node_type", "exception_message", "exception_type"] if key in errinfo]
+
+    state.update(setstate)
+    setstate.clear()
+    data = {}
+    data["status_info"] = status_info
+    data["stream_mtime"] = frame_mtime
+    data["preview_mtime"] = {key: state[key][0] for key in state if key.endswith("PreviewBox")}
+    data["message"] = state["message"]
+    data["update_and_reload"] = state["update_and_reload"]
+    state["update_and_reload"] = False
+    return web.json_response(data)
 
 
 @server.PromptServer.instance.routes.post("/flipstreamviewer/update_param")
@@ -1356,6 +1391,8 @@ async def update_param(request):
 
     stt, prm = await request.json()
     state.update(stt)
+    state.update(setstate)
+    setstate.clear()
     param.update(prm)
     param.update(setparam)
     setparam.clear()
@@ -1566,14 +1603,14 @@ class FlipStreamTextBox:
 
     @classmethod
     def IS_CHANGED(cls, label, default, **kwargs):
-        param.setdefault(label, btoa(default))
+        param.setdefault(label, btoa_utf8(default))
         return hash((param[label],))
     
     def run(self, label, default, **kwargs):
         global frame_updating
         frame_updating = True
-        param.setdefault(label, btoa(default))        
-        return (atob(param[label]),)
+        param.setdefault(label, btoa_utf8(default))        
+        return (atob_utf8(param[label]),)
 
 
 class FlipStreamInputBox:
@@ -1709,23 +1746,23 @@ class FlipStreamFileSelect:
 
 class FlipStreamFileSelect_Checkpoints(FlipStreamFileSelect):
     FOLDER_NAME = "checkpoints"
-    FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix())
+    FOLDER_PATH = Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix()
 
 
 class FlipStreamFileSelect_VAE(FlipStreamFileSelect):
     FOLDER_NAME = "vae"
-    FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix())
+    FOLDER_PATH = Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix()
 
 
 class FlipStreamFileSelect_ControlNetModel(FlipStreamFileSelect):
     FOLDER_NAME = "controlnet"
-    FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix())
+    FOLDER_PATH = Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix()
 
 
 class FlipStreamFileSelect_TensorRT(FlipStreamFileSelect):
     FOLDER_NAME = "tensorrt"
     try:
-        FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix())
+        FOLDER_PATH = Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix()
     except:
         FOLDER_PATH = "_error_ tensorrt folder is not found"
 
@@ -1733,19 +1770,19 @@ class FlipStreamFileSelect_TensorRT(FlipStreamFileSelect):
 class FlipStreamFileSelect_AnimateDiffModel(FlipStreamFileSelect):
     FOLDER_NAME = "animatediff_models"
     try:
-        FOLDER_PATH = str(Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix())
+        FOLDER_PATH = Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix()
     except:
         FOLDER_PATH = "_error_ animatediff_models folder is not found"
 
 
 class FlipStreamFileSelect_Input(FlipStreamFileSelect):
     FOLDER_NAME = "input"
-    FOLDER_PATH = str(Path(folder_paths.input_directory).relative_to(Path.cwd()).as_posix())
+    FOLDER_PATH = Path(folder_paths.input_directory).relative_to(Path.cwd()).as_posix()
 
 
 class FlipStreamFileSelect_Output(FlipStreamFileSelect):
     FOLDER_NAME = "output"
-    FOLDER_PATH = str(Path(folder_paths.output_directory).relative_to(Path.cwd()).as_posix())
+    FOLDER_PATH = Path(folder_paths.output_directory).relative_to(Path.cwd()).as_posix()
 
 
 class FlipStreamPreviewBox:
@@ -1773,6 +1810,51 @@ class FlipStreamPreviewBox:
         return ()
 
 
+class FlipStreamSetUpdateAndReload:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "delay_sec": ("FLOAT", {"default": 1, "min": 0.0, "max": 30.0, "step": 0.1}),
+            },
+            "optional": {
+                "hook": (any,),
+            }
+        }
+
+    RETURN_TYPES = (any,)
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, delay_sec, hook=None):
+        time.sleep(delay_sec)
+        setstate["update_and_reload"] = True
+        return (hook,)
+
+
+class FlipStreamSetMessage:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "message": ("STRING", {"default": "", "multiline": True}),
+            },
+            "optional": {
+                "hook": (any,),
+            }
+        }
+
+    RETURN_TYPES = (any,)
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, message, hook=None):
+        setstate["message"] = btoa_utf8(message)
+        return (hook,)
+
+
 class FlipStreamSetParam:
     @classmethod
     def INPUT_TYPES(s):
@@ -1796,8 +1878,8 @@ class FlipStreamSetParam:
     def run(self, label, value, replace, b64enc, hook=None):
         empty = ""
         if b64enc:
-            value = btoa(value)
-            empty = btoa(empty)
+            value = btoa_utf8(value)
+            empty = btoa_utf8(empty)
         if replace or label not in param or param[label] == empty:
             setparam[label] = value
         return (hook,)
@@ -1824,7 +1906,7 @@ class FlipStreamGetParam:
         if label in param:
             value = param[label]
             if b64dec:
-                value = atob(value)
+                value = atob_utf8(value)
         return hash((value,))
 
     def run(self, label, default, b64dec):
@@ -1834,7 +1916,7 @@ class FlipStreamGetParam:
         if label in param:
             value = param[label]
             if b64dec:
-                value = atob(value)
+                value = atob_utf8(value)
         return (value,)
 
 
@@ -1900,7 +1982,7 @@ class FlipStreamTextReplace:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "text": ("STRING", {"default": ""}),
+                "text": ("STRING", {"default": "", "multiline": True}),
                 "find": ("STRING", {"default": ""}),
                 "replace": ("STRING", {"default": ""}),
             },
@@ -2058,14 +2140,37 @@ class FlipStreamSource:
         return (image, latent,)
 
 
+class FlipStreamSwitch:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "value": (any,),
+            },
+            "optional": {
+                "value_enable": (any,),
+                "enable": ("BOOLEAN",),
+            }
+        }
+
+    RETURN_TYPES = (any,)
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, value=None, value_enable=None, enable=None):
+        if enable:
+            return (value_enable,)
+        return (value,)
+
+
 class FlipStreamSwitchImage:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
+                "image": ("IMAGE",),
             },
             "optional": {
-                "image": ("IMAGE",),
                 "image_enable": ("IMAGE",),
                 "enable": ("BOOLEAN",),
             }
@@ -2204,19 +2309,18 @@ class FlipStreamSegMask:
                 snapshot_download(repo_id=model_id, local_dir=str(model_path), local_dir_use_symlinks=False)
             
         # Load model
-        mm = comfy.model_management
         if FlipStreamSegMask.model is None:
             FlipStreamSegMask.model = transformers.AutoModelForCausalLM.from_pretrained(
                 model_id,
                 trust_remote_code=True,
                 attn_implementation='sdpa',
-                device_map=mm.get_torch_device(),
+                device_map=comfy.model_management.get_torch_device(),
                 torch_dtype=torch.bfloat16
             )
             FlipStreamSegMask.processor = transformers.AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
         model = FlipStreamSegMask.model
         processor = FlipStreamSegMask.processor
-        model.to(mm.get_torch_device())
+        model.to(comfy.model_management.get_torch_device())
 
         # Process prompt for each target
         task_prompt = '<REFERRING_EXPRESSION_SEGMENTATION>'
@@ -2254,6 +2358,106 @@ class FlipStreamSegMask:
 
         mask_tensor = torch.from_numpy(np.array(mask_image).astype(np.float32) / 255.0).unsqueeze(0)
         return (mask_tensor, mask_tensor[:,:,:,0])
+
+
+class FlipStreamChat:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "model_file": ([path.name for path in Path(folder_paths.models_dir, "LLM").glob("*.gguf")],),
+                "n_ctx": ("INT", {"default": 2048}),
+                "n_gpu_layers": ("INT", {"default": -1}),
+                "unload_other_models": ("BOOLEAN", {"default": False}),
+                "close_after_use": ("BOOLEAN", {"default": False}),
+                "system": ("STRING", {"default": "", "multiline": True}),
+                "user": ("STRING", {"default": "", "multiline": True}),
+                "instant": ("BOOLEAN", {"default": False}),
+                "max_history": ("INT", {"default": 10, "min": -1}),
+                "stop": ("STRING", {"default": "[,<"}),
+                "temperature": ("FLOAT", {"default": 0.2, "min": 0}),
+                "top_p": ("FLOAT", {"default": 0.95, "min": 0}),
+                "seed": ("INT", {"default": -1}),
+                "max_tokens": ("INT", {"default": 128, "min": 0}),
+                "presence_penalty": ("FLOAT", {"default": 0, "min": 0}),
+                "frequency_penalty": ("FLOAT", {"default": 0, "min": 0}),
+                "repeat_penalty": ("FLOAT", {"default": 1.0, "min": 0})
+            },
+            "optional": {
+                "chat_model": ("CHAT_MODEL",),
+                "messages": ("MESSAGES",)
+            }
+        }
+
+    RETURN_TYPES = ("CHAT_MODEL", "STRING", "MESSAGES")
+    RETURN_NAMES =("chat_model", "response", "messages")
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def __init__(self):
+        self.model = None
+        self.messages = []
+        self.system = None
+
+    def load_model(self, model_file, n_ctx, n_gpu_layers):
+        h = hash((model_file, n_ctx, n_gpu_layers))
+        if self.model is None or self.model._FlipStreamChat_is_closed or self.model._FlipStreamChat_last_hash != h:
+            model_path = Path(folder_paths.models_dir, "LLM", model_file)
+            if not model_path.exists():
+                raise RuntimeError(f"FlipStreamChat: {model_path} not found.")
+            if Llama is None:
+                raise RuntimeError("FlipStreamChat: llama-cpp-python required.")
+            self.model = Llama(str(model_path), chat_format="llama-2", n_ctx=n_ctx, n_gpu_layers=n_gpu_layers, verbose=False)
+            self.model._FlipStreamChat_is_closed = False
+            self.model._FlipStreamChat_last_hash = h
+
+    def close_model(self):
+        self.model.close()
+        self.model._FlipStreamChat_is_closed = True
+
+    def chat(self, system, user, stop, messages, **kwargs):
+        if system != self.system:
+            self.system = system
+            messages.clear()
+        if system and len(messages) == 0:
+            messages.append(dict(role="system", content=system))
+        if system and messages[0]["role"] != "system":
+            messages[0] = dict(role="system", content=system)
+        if user:
+            messages.append(dict(role="user", content=user))
+        return self.model.create_chat_completion(messages, stop=list(filter(str.strip, stop.split(","))), **kwargs)["choices"][0]["message"]
+
+    def run(self, model_file, n_ctx, n_gpu_layers, unload_other_models, close_after_use, system, user, instant, max_history, stop, chat_model=None, messages=None, **kwargs):
+        if unload_other_models:
+            comfy.model_management.unload_all_models()
+            comfy.model_management.soft_empty_cache(True)
+            try:
+                comfy.gc.collect()
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+            except:
+                pass
+        if chat_model is not None:
+            self.model = chat_model
+        if messages is None:
+            messages = self.messages
+        if max_history == 0:
+            messages.clear()
+        elif max_history >= 1:
+            messages[:] = messages[-max_history:]
+        self.load_model(model_file, n_ctx, n_gpu_layers)
+        if instant:
+            res = self.chat(system, user, stop, messages.copy(), **kwargs)
+            output = res["content"]
+        else:
+            res = self.chat(system, user, stop, messages, **kwargs)
+            output = res["content"]
+            if res["role"] == "assistant":
+                messages.append(dict(role="assistant", content=output))
+        self.messages = messages
+        if close_after_use:
+            self.close_model()
+        return (self.model, output, messages)
 
 
 class FlipStreamBatchPrompt:
@@ -2329,9 +2533,8 @@ class FlipStreamFilmVfi:
             model = torch.jit.load(model_path, map_location="cpu")
             model.eval()
             FlipStreamFilmVfi.model = model
-        mm = comfy.model_management
         model = FlipStreamFilmVfi.model
-        model = model.to(mm.get_torch_device())
+        model = model.to(comfy.model_management.get_torch_device())
         dtype = torch.float32
 
         frames = film.preprocess_frames(frames)
@@ -2339,8 +2542,8 @@ class FlipStreamFilmVfi:
         output_frames = []
         
         for frame_itr in range(len(frames) - 1):
-            frame_0 = frames[frame_itr:frame_itr+1].to(mm.get_torch_device()).float()
-            frame_1 = frames[frame_itr+1:frame_itr+2].to(mm.get_torch_device()).float()
+            frame_0 = frames[frame_itr:frame_itr+1].to(comfy.model_management.get_torch_device()).float()
+            frame_1 = frames[frame_itr+1:frame_itr+2].to(comfy.model_management.get_torch_device()).float()
             relust = film.inference(model, frame_0, frame_1, multiplier - 1)
             output_frames.extend([frame.detach().cpu().to(dtype=dtype) for frame in relust[:-1]])
 
@@ -2414,6 +2617,8 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamFileSelect_Input": FlipStreamFileSelect_Input,
     "FlipStreamFileSelect_Output": FlipStreamFileSelect_Output,
     "FlipStreamPreviewBox": FlipStreamPreviewBox,
+    "FlipStreamSetUpdateAndReload": FlipStreamSetUpdateAndReload,
+    "FlipStreamSetMessage": FlipStreamSetMessage,
     "FlipStreamSetParam": FlipStreamSetParam,
     "FlipStreamGetParam": FlipStreamGetParam,
     "FlipStreamGetPreviewRoi": FlipStreamGetPreviewRoi,
@@ -2422,11 +2627,13 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamScreenGrabber": FlipStreamScreenGrabber,
     "FlipStreamVideoInput": FlipStreamVideoInput,
     "FlipStreamSource": FlipStreamSource,
+    "FlipStreamSwitch": FlipStreamSwitch,
     "FlipStreamSwitchImage": FlipStreamSwitchImage,
     "FlipStreamSwitchLatent": FlipStreamSwitchLatent,
     "FlipStreamGate": FlipStreamGate,
     "FlipStreamRembg": FlipStreamRembg,
     "FlipStreamSegMask": FlipStreamSegMask,
+    "FlipStreamChat": FlipStreamChat,
     "FlipStreamBatchPrompt": FlipStreamBatchPrompt,
     "FlipStreamFilmVfi": FlipStreamFilmVfi,
     "FlipStreamViewer": FlipStreamViewer,
@@ -2447,6 +2654,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamFileSelect_Input": "FlipStreamFileSelect_Input",
     "FlipStreamFileSelect_Output": "FlipStreamFileSelect_Output",
     "FlipStreamPreviewBox": "FlipStreamPreviewBox",
+    "FlipStreamSetUpdateAndReload": "FlipStreamSetUpdateAndReload",
+    "FlipStreamSetMessage": "FlipStreamSetMessage",
     "FlipStreamSetParam": "FlipStreamSetParam",
     "FlipStreamGetParam": "FlipStreamGetParam",
     "FlipStreamGetPreviewRoi": "FlipStreamGetPreviewRoi",
@@ -2455,11 +2664,13 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamScreenGrabber": "FlipStreamScreenGrabber",
     "FlipStreamVideoInput": "FlipStreamVideoInput",
     "FlipStreamSource": "FlipStreamSource",
+    "FlipStreamSwitch": "FlipStreamSwitch",
     "FlipStreamSwitchImage": "FlipStreamSwitchImage",
     "FlipStreamSwitchLatent": "FlipStreamSwitchLatent",
     "FlipStreamGate": "FlipStreamGate",
     "FlipStreamRembg": "FlipStreamRembg",
     "FlipStreamSegMask": "FlipStreamSegMask",
+    "FlipStreamChat": "FlipStreamChat",
     "FlipStreamBatchPrompt": "FlipStreamBatchPrompt",
     "FlipStreamFilmVfi": "FlipStreamFilmVfi",
     "FlipStreamViewer": "FlipStreamViewer",

@@ -40,6 +40,17 @@ The following custom nodes may also be used within workflows:
 - ComfyUI-DepthAnythingV2
 - ComfyUI-Advanced-ControlNet
 
+## Optional Python Packages Dependencies
+
+llama-cpp-python for FlipStreamLoadChatModel:
+```
+cd python_embeded
+python -m pip install scikit-build-core
+python -m pip install cmake
+set CMAKE_ARGS="-DGGML_CUDA=on"
+python -m pip install llama-cpp-python
+```
+
 ## UI Features
 
 - **Customizable Left Panel**: The left panel UI is customizable with UI Nodes.
@@ -56,6 +67,7 @@ The following custom nodes may also be used within workflows:
 - **Lora**: You can select LoRA and choose tags. It can also choose random tags. The LoRA preview box can be clicked to jump to the Civitai LoRA page if found. The 'M' button means Move to another folder. The 'T' button means Toggle. The 'R' button means Random choose.
 - **Toggle View**: You can click the center panel to hide the left and right panels, and a subsequent click will hide the image. It can also be set via query: 
 `http://localhost:8188/flipstreamviewer?toggleView=1`
+- **Message Box**: If a message is set by FlipStreamSetMessage, you can view it at the bottom of the center panel.
 - **Auto Hide**: Stream and preview in the viewer will automatically hide after 5 minutes if the page is not reloaded.
 
 ## UI Nodes
@@ -77,6 +89,8 @@ The following custom nodes may also be used within workflows:
 
 ## Other Nodes
 
+- **FlipStreamSetUpdateAndReload**: Updates parameters and reloads pages after a delay.
+- **FlipStreamSetMessage**: Sets a message for the message box at the bottom of the center panel.
 - **FlipStreamSetParam**: A node for setting parameters. However, it needs a reload to update the value in the viewer UI.
 - **FlipStreamGetParam**: A node for getting parameters. 'lora' is a prepared parameter that contains text at the Lora input. Some prompts can contain '{lora}' and FlipStreamTextReplace can help find '{lora}' and replace it with the output of the get param node of 'lora'. 'b64dec' is true for 'lora' and other 'FlipStreamTextBox' parameters, because these multiline parameters are internally base64 encoded.
 - **FlipStreamGetPreviewRoi**: A node for obtaining the preview ROI (Region of Interest) selection.
@@ -89,6 +103,7 @@ The following custom nodes may also be used within workflows:
 - **FlipStreamGate**: A node for consolidating input timing to ensure that inputs to the sampler do not occur sequentially.
 - **FlipStreamRembg**: A node for remove background. It depends on ComfyUI-Inspyrenet-Rembg.
 - **FlipStreamSegMask**: A node for segmentation masks. The target can contain multiple words separated by commas for segmentation. It will use the 'microsoft/Florence-2-large' model, which you can download using the DownloadAndLoadFlorence2Model node of ComfyUI-Florence2. Segmentation sometimes fails, so you may need to try some other random seeds.
+- **FlipStreamChat**: Loads an LLM (Large Language Model) and obtains chat responses. It only supports *.gguf files in the models/LLM folder and uses llama-cpp-python.
 - **FlipStreamBatchPrompt**: A node for simple batch prompting. Use the following format for the input prompt of this node. The 'pre text' and 'append text' sections apply to all frames. The separator `----` should consist of four hyphens, and each line of 'frame text' applies evenly to the number of frames specified in 'frames'. For example, if 'frames' is 8 and there are 2 'frame text' lines, they will be applied starting from frames 0 and 4.
 ```
 pre text,
@@ -120,3 +135,4 @@ append text
 - **grab_rembg_depth_animate.json**: Using ControlNet and AnimateDiff with FlipStreamScreenGrabber, FlipStreamRembg.
 - **quick_vid2vid.json**: Quick tuning workflow for vid2vid.
 - **quick_vid2vid_roi.json**: An example demonstrating the use of FlipStreamGetPreviewRoi and FlipStreamGate.
+- **visualnobel.json**: Visual nobel like UI using FlipStreamChat.
