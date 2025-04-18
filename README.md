@@ -135,3 +135,4 @@ append text
 - **grab_rembg_depth_animate.json**: Using ControlNet and AnimateDiff with FlipStreamScreenGrabber, FlipStreamRembg.
 - **quick_vid2vid.json**: Quick tuning workflow for vid2vid.
 - **quick_vid2vid_roi.json**: An example demonstrating the use of FlipStreamGetPreviewRoi and FlipStreamGate.
+- **visualnobel.json**: Visual nobel like UI using FlipStreamChat.
