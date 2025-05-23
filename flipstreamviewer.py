@@ -23,6 +23,9 @@ import folder_paths
 import comfy
 from nodes import CheckpointLoaderSimple, VAELoader
 
+import sys
+sys.path.append("ComfyUI/custom_nodes")
+
 try:
     from llama_cpp import Llama  # llama-cpp-python
 except:
@@ -49,7 +52,7 @@ except:
     film = None
 
 try:
-    from custom_nodes.comfyui_tensorrt import TensorRTLoader
+    from comfyui_tensorrt import TensorRTLoader
 except:
     TensorRTLoader = None
 
