@@ -830,12 +830,12 @@ async function refreshView() {
     document.getElementById("messageBox").textContent = atob_utf8(data.message) || "";
     if (document.body.style.backgroundImage != "none") {
         document.body.style.backgroundImage = `url('/flipstreamviewer/stream?mtime=${data.stream_mtime || 0}')`;
+        document.querySelectorAll('.FlipStreamPreviewBox').forEach(async x => {
+            if (x.src != "") {
+                x.src = `/flipstreamviewer/preview?label=${x.name}&mtime=${data.preview_mtime[x.id] || 0}`;
+            }
+        });
     }
-    document.querySelectorAll('.FlipStreamPreviewBox').forEach(async x => {
-        if (x.src != "") {
-            x.src = `/flipstreamviewer/preview?label=${x.name}&mtime=${data.preview_mtime[x.id] || 0}`;
-        }
-    });
     if (data.update_and_reload) {
         updateParam(true);
     }
