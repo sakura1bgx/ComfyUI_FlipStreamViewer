@@ -69,7 +69,7 @@ setparam = {}
 setstate = {}
 param = {"lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
 state = {"message": btoa_utf8(""), "update_and_reload": False, "presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
-frame_updating = False
+frame_updating = None
 frame_buffer = None
 frame_mtime = 0
 exclude_tags = ""
@@ -174,10 +174,6 @@ div.row {
     position: absolute;
     top: 0;
     left: 0;
-}
-
-#statusInfo {
-    line-break: anywhere;
 }
 
 #leftPanel,
@@ -790,16 +786,14 @@ function toggleView() {
         rightPanel.style.visibility = "hidden";
         presetLeftPanel.style.visibility = "hidden";
         presetRightPanel.style.visibility = "hidden";
+        messageBox.style.visibility = "hidden";
         toggleViewFlag = false;
     } else {
-        document.body.style.backgroundImage = "none";
-        messageBox.style.visibility = "hidden";
-        document.getElementById("loraPreview").src = "";
-        document.querySelectorAll('.FlipStreamPreviewBox').forEach(x => x.src = "");
         leftPanel.style.visibility = "visible";
         rightPanel.style.visibility = "visible";
         presetLeftPanel.style.visibility = "visible";
         presetRightPanel.style.visibility = "visible";
+        messageBox.style.visibility = "visible";
         toggleViewFlag = true;
     }
 }
@@ -1162,7 +1156,7 @@ async def viewer(request):
         </div>
         <div id="rightPanel">
             <div class="row"><i>Status</i></div>
-            <div id="statusInfo"></div>
+            <textarea id="statusInfo" style="color: lightslategray;" rows="2"></textarea>
             <div class="row"><i>Darker</i></div>
             <div class="row">
                 <input id="darkerRange" type="range" min="0" max="1" step="0.01" value="{state["darker"]}" oninput="onInputDarker();" />
@@ -1367,7 +1361,7 @@ async def get_status(request):
     hist = server.PromptServer.instance.prompt_queue.get_history(max_items=1)
     status_info = []
     if frame_updating:
-        status_info.append("updating")
+        status_info.append(f"updating {int(time.time() - frame_updating)}s")
     status_info.append(f"q{remain}")
     info = next(iter(hist.values()))["status"] if hist else None
     if info:
@@ -1584,7 +1578,7 @@ class FlipStreamSlider:
     
     def run(self, label, default, **kwargs):
         global frame_updating
-        frame_updating = True
+        frame_updating = time.time()
         param.setdefault(label, default)
         return (float(param[label]), int(float(param[label])), bool(float(param[label])))
 
@@ -1611,7 +1605,7 @@ class FlipStreamTextBox:
     
     def run(self, label, default, **kwargs):
         global frame_updating
-        frame_updating = True
+        frame_updating = time.time()
         param.setdefault(label, btoa_utf8(default))        
         return (atob_utf8(param[label]),)
 
@@ -1644,7 +1638,7 @@ class FlipStreamInputBox:
     
     def run(self, label, default, boxtype, **kwargs):
         global frame_updating
-        frame_updating = True
+        frame_updating = time.time()
         param.setdefault(label, default)
         t = param[label]
         v = self.floator0(t)
@@ -1676,7 +1670,7 @@ class FlipStreamSelectBox:
 
     def run(self, label, default, **kwargs):
         global frame_updating
-        frame_updating = True
+        frame_updating = time.time()
         param.setdefault(label, "")
         item = param[label] if param[label] else default
         return (item, param[label] != "")
@@ -1741,7 +1735,7 @@ class FlipStreamFileSelect:
 
     def run(self, label, default, folder_path, **kwargs):
         global frame_updating
-        frame_updating = True
+        frame_updating = time.time()
         param.setdefault(label, "")
         file = param[label] if param[label] else default
         return (file, str(Path(folder_path, file)), param[label] != "")
@@ -1914,7 +1908,7 @@ class FlipStreamGetParam:
 
     def run(self, label, default, b64dec):
         global frame_updating
-        frame_updating = True
+        frame_updating = time.time()
         value = default
         if label in param:
             value = param[label]
@@ -1950,7 +1944,7 @@ class FlipStreamGetPreviewRoi:
 
     def run(self, label, default_left, default_top, default_right, default_bottom, width, height):
         global frame_updating
-        frame_updating = True
+        frame_updating = time.time()
         roi_data = param.get(label + "PreviewRoi", {})
         left = int(roi_data['sx'] * width) if 'sx' in roi_data else default_left
         top = int(roi_data['sy'] * height) if 'sy' in roi_data else default_top
@@ -2602,7 +2596,7 @@ class FlipStreamViewer:
             iio.imwrite(output, buf, format='png', extension=".apng", compression=STREAM_COMPRESSION, fps=fps)
             frame_buffer = output.getvalue()
             frame_mtime = time.time()
-        frame_updating = False
+        frame_updating = None
         return ()
 
 NODE_CLASS_MAPPINGS = {
