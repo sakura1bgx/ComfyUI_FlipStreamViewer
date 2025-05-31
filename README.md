@@ -65,7 +65,7 @@ python -m pip install llama-cpp-python
 - **Preset**: You can save and load parameters that are set on viewer controls. The 'M' button means Move to another folder. It can also be set via query:
 `http://localhost:8188/flipstreamviewer?showPresetDialog=1&presetFolder=folder_name&presetFile=file_name.json`
 - **Lora**: You can select LoRA and choose tags. It can also choose random tags. The LoRA preview box can be clicked to jump to the Civitai LoRA page if found. The 'M' button means Move to another folder. The 'T' button means Toggle. The 'R' button means Random choose.
-- **Toggle View**: You can click the center panel to hide the left and right panels, and a subsequent click will hide the image. It can also be set via query: 
+- **Toggle View**: You can click the center panel to hide the left/right panels and the center message box, a subsequent click will show them. It can also be set via query: 
 `http://localhost:8188/flipstreamviewer?toggleView=1`
 - **Message Box**: If a message is set by FlipStreamSetMessage, you can view it at the bottom of the center panel.
 - **Auto Hide**: Stream and preview in the viewer will automatically hide after 5 minutes if the page is not reloaded.
