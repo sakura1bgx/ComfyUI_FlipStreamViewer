@@ -60,6 +60,8 @@ def btoa_utf8(value):
     return base64.b64encode(value.encode("utf-8")).decode()
 
 def atob_utf8(value):
+    if not value:
+        return ""
     return base64.b64decode(value.encode()).decode("utf-8")
 
 STREAM_COMPRESSION = 0
@@ -67,8 +69,9 @@ UPDATE_DELAY = 1.0
 allowed_ips = ["127.0.0.1"]
 setparam = {}
 setstate = {}
-param = {"lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
-state = {"message": btoa_utf8(""), "update_and_reload": False, "presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
+default_param = {"lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
+param = default_param.copy()
+state = {"message": "", "update_and_reload": False, "presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
 frame_updating = None
 frame_buffer = None
 frame_mtime = 0
@@ -243,18 +246,14 @@ div.row {
     width: 50%;
 }
 
-#toggleViewButton {
-    width: 100%;
-    height: 85%;
-    border: none;
-    background: transparent;
-}
-
 #messageBox {
     width: 100%;
-    height: 15%;
+    height: 100%;
     border: none;
+    padding: 10px;
     background: transparent;
+    text-align: left;
+    user-select: none;
     font-size: 1.5rem;
     text-shadow: 
     black 2px 0px,  black -2px 0px,
@@ -293,6 +292,9 @@ function btoa_utf8(str) {
 }
 
 function atob_utf8(str) {
+    if (!str) {
+        return "";
+    }
     return decodeURIComponent(escape(atob(str)));
 }
 
@@ -800,6 +802,7 @@ function toggleView() {
 
 function hideView() {
     const leftPanel = document.getElementById("leftPanel");
+    const centerPanel = document.getElementById("centerPanel");
     const rightPanel = document.getElementById("rightPanel");
     const presetLeftPanel = document.getElementById("presetLeftPanel");
     const presetRightPanel = document.getElementById("presetRightPanel");
@@ -810,6 +813,7 @@ function hideView() {
     document.getElementById("loraPreview").src = "";
     document.querySelectorAll('.FlipStreamPreviewBox').forEach(x => x.src = "");
     leftPanel.style.visibility = "hidden";
+    centerPanel.style.visibility = "hidden";
     rightPanel.style.visibility = "hidden";
     presetLeftPanel.style.visibility = "hidden";
     presetRightPanel.style.visibility = "hidden";
@@ -821,7 +825,14 @@ async function refreshView() {
     const data = await fetch("/flipstreamviewer/refresh_view")
         .then(r => r.json()).catch(e => ({ status: "Fails to refresh view: " + e }));
     document.getElementById("statusInfo").textContent = data.status_info || "Empty";
-    document.getElementById("messageBox").textContent = atob_utf8(data.message) || "";
+    document.getElementById("messageBox").innerText = atob_utf8(data.message) || "";
+    document.querySelectorAll('.FlipStreamLogBox').forEach(async x => {
+        if (x.id in data.log) {
+            x.innerText = atob_utf8(data.log[x.id]) || "";
+        } else {
+            x.innerText = "";
+        }
+    });
     if (document.body.style.backgroundImage != "none") {
         document.body.style.backgroundImage = `url('/flipstreamviewer/stream?mtime=${data.stream_mtime || 0}')`;
         document.querySelectorAll('.FlipStreamPreviewBox').forEach(async x => {
@@ -1003,7 +1014,7 @@ async def viewer(request):
     def add_textbox(title, label, default, rows):
         if not label.isidentifier():
             raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
-        param.setdefault(label, default)
+        param.setdefault(label, btoa_utf8(default))
         block[f"{title}_{label}"] = f"""
             <textarea class="FlipStreamTextBox" id="{label}TextBox" style="color: lightslategray;" placeholder="{label}" rows="{rows}" name="{label}">{atob_utf8(param[label])}</textarea>"""
 
@@ -1119,6 +1130,13 @@ async def viewer(request):
                 <img class="FlipStreamPreviewBox" id="{label}PreviewBox" name="{label}" src="/flipstreamviewer/preview?label={label}" alt onerror="this.onerror = null; this.src='';" />
                 <canvas class="FlipStreamPreviewRoi" id="{label}PreviewRoi"></canvas>
             </div>"""
+    
+    def add_logbox(title, label, log, rows):
+        if not label.isidentifier():
+            raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
+        if (label + "LogBox") in state:
+            block[f"{title}_{label}"] = f"""
+            <textarea class="FlipStreamLogBox" id="{label}LogBox" style="color: lightslategray;" placeholder="{label}" rows="{rows}" name="{label}" readonly></textarea>"""
 
     hist = server.PromptServer.instance.prompt_queue.get_history(max_items=1)
     nodedict = next(iter(hist.values()))["prompt"][2] if hist else None
@@ -1141,6 +1159,8 @@ async def viewer(request):
                 add_fileselect(title, **inputs)
             if class_type == "FlipStreamPreviewBox":
                 add_previewbox(title, **inputs)
+            if class_type == "FlipStreamLogBox":
+                add_logbox(title, **inputs)
 
     text_html = f"""<html>{HEAD}<body>
     <div id="mainDialog">
@@ -1150,9 +1170,8 @@ async def viewer(request):
             </div>
             {"".join([x[1] for x in sorted(block.items())])}
         </div>
-        <div id="centerPanel">
-            <button id="toggleViewButton" onclick="toggleView()"></button>
-            <div id="messageBox" onclick="toggleView()"></div>
+        <div id="centerPanel" onclick="toggleView()">
+            <div id="messageBox"></div>
         </div>
         <div id="rightPanel">
             <div class="row"><i>Status</i></div>
@@ -1316,9 +1335,8 @@ async def viewer(request):
     <div id="presetDialog">
         <div id="presetLeftPanel">
         </div>
-        <div id="presetCenterPanel">
-            <button id="toggleViewButton" onclick="toggleView()"></button>
-            <div id="messageBox" onclick="toggleView()"></div>
+        <div id="presetCenterPanel" onclick="toggleView()">
+            <div id="messageBox"></div>
         </div>
         <div id="presetRightPanel">
             <div class="row">
@@ -1375,6 +1393,7 @@ async def get_status(request):
     data["status_info"] = status_info
     data["stream_mtime"] = frame_mtime
     data["preview_mtime"] = {key: state[key][0] for key in state if key.endswith("PreviewBox")}
+    data["log"] = {key: state[key] for key in state if key.endswith("LogBox")}
     data["message"] = state["message"]
     data["update_and_reload"] = state["update_and_reload"]
     state["update_and_reload"] = False
@@ -1514,6 +1533,8 @@ async def load_preset(request):
             buf = {"lora": buf.get("lora", "")}
 
     state.update(stt)
+    param.clear()
+    param.update(default_param)
     param.update(buf)
     state["presetTitle"] = Path(state["presetFile"]).stem
     time.sleep(UPDATE_DELAY)
@@ -1606,7 +1627,7 @@ class FlipStreamTextBox:
     def run(self, label, default, **kwargs):
         global frame_updating
         frame_updating = time.time()
-        param.setdefault(label, btoa_utf8(default))        
+        param.setdefault(label, btoa_utf8(default))
         return (atob_utf8(param[label]),)
 
 
@@ -1804,6 +1825,27 @@ class FlipStreamPreviewBox:
         with BytesIO() as output:
             iio.imwrite(output, np.array(image), format="png", extension=".png", compression=STREAM_COMPRESSION)
             state[label + "PreviewBox"] = (time.time(), output.getvalue())
+        return ()
+
+
+class FlipStreamLogBox:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "label": ("STRING", {"default": "empty"}),
+                "log": ("STRING",),
+                "rows": ("INT", {"default": 3}),
+            }
+        }
+
+    RETURN_TYPES = ()
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, label, log, **kwargs):
+        state[label + "LogBox"] = btoa_utf8(log)
         return ()
 
 
@@ -2377,8 +2419,9 @@ class FlipStreamChat:
                 "seed": ("INT", {"default": -1}),
                 "max_tokens": ("INT", {"default": 128, "min": 0}),
                 "presence_penalty": ("FLOAT", {"default": 0, "min": 0}),
-                "frequency_penalty": ("FLOAT", {"default": 0, "min": 0}),
-                "repeat_penalty": ("FLOAT", {"default": 1.0, "min": 0})
+                "frequency_penalty": ("FLOAT", {"default": 0.5, "min": 0}),
+                "repeat_penalty": ("FLOAT", {"default": 1.0, "min": 0}),
+                "response_format": ("STRING", {"default": "", "multiline": True})
             },
             "optional": {
                 "chat_model": ("CHAT_MODEL",),
@@ -2412,7 +2455,7 @@ class FlipStreamChat:
         self.model.close()
         self.model._FlipStreamChat_is_closed = True
 
-    def chat(self, system, user, stop, messages, **kwargs):
+    def chat(self, system, user, stop, messages, response_format, **kwargs):
         if system != self.system:
             self.system = system
             messages.clear()
@@ -2422,7 +2465,11 @@ class FlipStreamChat:
             messages[0] = dict(role="system", content=system)
         if user:
             messages.append(dict(role="user", content=user))
-        return self.model.create_chat_completion(messages, stop=list(filter(str.strip, stop.split(","))), **kwargs)["choices"][0]["message"]
+        if response_format:
+            response_format = json.loads(response_format)
+        else:
+            response_format = None
+        return self.model.create_chat_completion(messages, stop=list(filter(str.strip, stop.split(","))), response_format=response_format, **kwargs)["choices"][0]["message"]
 
     def run(self, model_file, n_ctx, n_gpu_layers, unload_other_models, close_after_use, system, user, instant, max_history, stop, chat_model=None, messages=None, **kwargs):
         if unload_other_models:
@@ -2441,7 +2488,7 @@ class FlipStreamChat:
         if max_history == 0:
             messages.clear()
         elif max_history >= 1:
-            messages[:] = messages[-max_history:]
+            messages[:] = messages[:max_history]
         self.load_model(model_file, n_ctx, n_gpu_layers)
         if instant:
             res = self.chat(system, user, stop, messages.copy(), **kwargs)
@@ -2455,6 +2502,33 @@ class FlipStreamChat:
         if close_after_use:
             self.close_model()
         return (self.model, output, messages)
+
+
+class FlipStreamParseJson:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "json_input": ("STRING", {"default": "", "multiline": True}),
+                "keys": ("STRING", {"default": "", "multiline": True}),
+                "joinstr": ("STRING", {"default": ",", "multiline": True}),
+                "ignore_error": ("BOOLEAN", {"default": True}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, json_input, keys, joinstr, ignore_error):
+        value = []
+        try:
+            for key in keys.split(","):
+                value.append(json.loads(json_input)[key.strip()])
+        except Exception as e:
+            if not ignore_error:
+                raise RuntimeError(f"FlipStreamParseJsonItem: Invalid JSON input: {e}: {json_input}")
+        return (joinstr.join(value),)
 
 
 class FlipStreamBatchPrompt:
@@ -2614,6 +2688,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamFileSelect_Input": FlipStreamFileSelect_Input,
     "FlipStreamFileSelect_Output": FlipStreamFileSelect_Output,
     "FlipStreamPreviewBox": FlipStreamPreviewBox,
+    "FlipStreamLogBox": FlipStreamLogBox,
     "FlipStreamSetUpdateAndReload": FlipStreamSetUpdateAndReload,
     "FlipStreamSetMessage": FlipStreamSetMessage,
     "FlipStreamSetParam": FlipStreamSetParam,
@@ -2631,6 +2706,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamRembg": FlipStreamRembg,
     "FlipStreamSegMask": FlipStreamSegMask,
     "FlipStreamChat": FlipStreamChat,
+    "FlipStreamParseJson": FlipStreamParseJson,
     "FlipStreamBatchPrompt": FlipStreamBatchPrompt,
     "FlipStreamFilmVfi": FlipStreamFilmVfi,
     "FlipStreamViewer": FlipStreamViewer,
@@ -2651,6 +2727,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamFileSelect_Input": "FlipStreamFileSelect_Input",
     "FlipStreamFileSelect_Output": "FlipStreamFileSelect_Output",
     "FlipStreamPreviewBox": "FlipStreamPreviewBox",
+    "FlipStreamLogBox": "FlipStreamLogBox",
     "FlipStreamSetUpdateAndReload": "FlipStreamSetUpdateAndReload",
     "FlipStreamSetMessage": "FlipStreamSetMessage",
     "FlipStreamSetParam": "FlipStreamSetParam",
@@ -2668,6 +2745,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamRembg": "FlipStreamRembg",
     "FlipStreamSegMask": "FlipStreamSegMask",
     "FlipStreamChat": "FlipStreamChat",
+    "FlipStreamParseJson": "FlipStreamParseJson",
     "FlipStreamBatchPrompt": "FlipStreamBatchPrompt",
     "FlipStreamFilmVfi": "FlipStreamFilmVfi",
     "FlipStreamViewer": "FlipStreamViewer",
