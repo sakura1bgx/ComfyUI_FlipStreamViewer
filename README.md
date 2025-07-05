@@ -104,7 +104,7 @@ python -m pip install llama-cpp-python
 - **FlipStreamGate**: A node for consolidating input timing to ensure that inputs to the sampler do not occur sequentially.
 - **FlipStreamRembg**: A node for remove background. It depends on ComfyUI-Inspyrenet-Rembg.
 - **FlipStreamSegMask**: A node for segmentation masks. The target can contain multiple words separated by commas for segmentation. It will use the 'microsoft/Florence-2-large' model, which you can download using the DownloadAndLoadFlorence2Model node of ComfyUI-Florence2. Segmentation sometimes fails, so you may need to try some other random seeds.
-- **FlipStreamChat**: Loads an LLM (Large Language Model) and obtains chat responses. It only supports *.gguf files in the models/LLM folder and uses llama-cpp-python.
+- **FlipStreamChat**: Loads an LLM (Large Language Model) and obtains chat responses. It only supports *.gguf files in the models/LLM folder and uses llama-cpp-python. The output format can be customized using the response_format parameter, which supports [JSON Schema](https://llama-cpp-python.readthedocs.io/en/latest/#json-schema-mode) for structured responses.
 - **FlipStreamParseJson**: Extracts values for multiple keys from a JSON string and joins them using a specified delimiter.
 - **FlipStreamBatchPrompt**: A node for simple batch prompting. Use the following format for the input prompt of this node. The 'pre text' and 'append text' sections apply to all frames. The separator `----` should consist of four hyphens, and each line of 'frame text' applies evenly to the number of frames specified in 'frames'. For example, if 'frames' is 8 and there are 2 'frame text' lines, they will be applied starting from frames 0 and 4.
 ```
