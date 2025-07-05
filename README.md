@@ -65,9 +65,9 @@ python -m pip install llama-cpp-python
 - **Preset**: You can save and load parameters that are set on viewer controls. The 'M' button means Move to another folder. It can also be set via query:
 `http://localhost:8188/flipstreamviewer?showPresetDialog=1&presetFolder=folder_name&presetFile=file_name.json`
 - **Lora**: You can select LoRA and choose tags. It can also choose random tags. The LoRA preview box can be clicked to jump to the Civitai LoRA page if found. The 'M' button means Move to another folder. The 'T' button means Toggle. The 'R' button means Random choose.
-- **Toggle View**: You can click the center panel to hide the left/right panels and the center message box, a subsequent click will show them. It can also be set via query: 
+- **Toggle View**: You can click the center panel to hide the left/right panels and the message box, a subsequent click will show them. It can also be set via query: 
 `http://localhost:8188/flipstreamviewer?toggleView=1`
-- **Message Box**: If a message is set by FlipStreamSetMessage, you can view it at the bottom of the center panel.
+- **Message Box**: If a message is set by FlipStreamSetMessage, you can view it at the top left of the center panel.
 - **Auto Hide**: Stream and preview in the viewer will automatically hide after 5 minutes if the page is not reloaded.
 
 ## UI Nodes
@@ -86,6 +86,7 @@ python -m pip install llama-cpp-python
 - **FlipStreamFileSelect_Input**: A file selector for ComfyUI input folder.
 - **FlipStreamFileSelect_Output**: A file selector for ComfyUI output folder.
 - **FlipStreamPreviewBox**: A box for previewing the input image. You can select the ROI (Region of Interest) in the preview by dragging the mouse.
+- **FlipStreamLogBox**: A box for displaying logs on the screen.
 
 ## Other Nodes
 
@@ -104,6 +105,7 @@ python -m pip install llama-cpp-python
 - **FlipStreamRembg**: A node for remove background. It depends on ComfyUI-Inspyrenet-Rembg.
 - **FlipStreamSegMask**: A node for segmentation masks. The target can contain multiple words separated by commas for segmentation. It will use the 'microsoft/Florence-2-large' model, which you can download using the DownloadAndLoadFlorence2Model node of ComfyUI-Florence2. Segmentation sometimes fails, so you may need to try some other random seeds.
 - **FlipStreamChat**: Loads an LLM (Large Language Model) and obtains chat responses. It only supports *.gguf files in the models/LLM folder and uses llama-cpp-python.
+- **FlipStreamParseJson**: Extracts values for multiple keys from a JSON string and joins them using a specified delimiter.
 - **FlipStreamBatchPrompt**: A node for simple batch prompting. Use the following format for the input prompt of this node. The 'pre text' and 'append text' sections apply to all frames. The separator `----` should consist of four hyphens, and each line of 'frame text' applies evenly to the number of frames specified in 'frames'. For example, if 'frames' is 8 and there are 2 'frame text' lines, they will be applied starting from frames 0 and 4.
 ```
 pre text,
