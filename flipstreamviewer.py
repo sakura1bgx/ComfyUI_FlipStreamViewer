@@ -2035,7 +2035,12 @@ class FlipStreamTextReplace:
     CATEGORY = "FlipStreamViewer"
 
     def run(self, text, find, replace, value=None):
-        return (text.replace(find, replace.format(value)),)
+        for word in find.split(","):
+            word = word.strip()
+            if not word:
+                continue
+            text = text.replace(word, replace.format(value))
+        return (text,)
 
 
 class FlipStreamScreenGrabber:
@@ -2524,7 +2529,7 @@ class FlipStreamParseJson:
         value = []
         try:
             for key in keys.split(","):
-                value.append(json.loads(json_input)[key.strip()])
+                value.append(json.loads(json_input, strict=False)[key.strip()])
         except Exception as e:
             if not ignore_error:
                 raise RuntimeError(f"FlipStreamParseJsonItem: Invalid JSON input: {e}: {json_input}")
@@ -2670,6 +2675,7 @@ class FlipStreamViewer:
             iio.imwrite(output, buf, format='png', extension=".apng", compression=STREAM_COMPRESSION, fps=fps)
             frame_buffer = output.getvalue()
             frame_mtime = time.time()
+        print(f"FlipStreamViewer: Frame updated {len(frame_buffer)/1e6} MB")    
         frame_updating = None
         return ()
 
