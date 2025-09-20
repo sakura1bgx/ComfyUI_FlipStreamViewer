@@ -1,7 +1,7 @@
 [project]
 name = "comfyui_flipstreamviewer"
 description = "ComfyUI_FlipStreamViewer is a tool that provides a customizable viewer interface for flipping images with frame interpolation."
-version = "3.5.0"
+version = "3.5.1"
 license = {file = "LICENSE.txt"}
 
 [project.urls]
