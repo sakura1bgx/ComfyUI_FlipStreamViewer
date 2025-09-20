@@ -7,6 +7,7 @@ import threading
 import time
 from pathlib import Path
 
+import imageio.v3 as iio
 import requests
 import torch
 import torch.nn.functional as NNF
@@ -2179,15 +2180,12 @@ class FlipStreamVideoInput:
     def run(self, path, first, step, frames):
         if not path or not Path(path).is_file():
             return (torch.zeros([1, 32, 32, 3]), False)
-        #try:
         with iio.imopen(path, "r") as file:
             buf = [file.read(index=i) for i in range(first, first+(frames-1)*step+1, step)]
         buf = np.stack(buf).astype(np.float32) / 255
         enable = buf.shape[0] == frames
         image = torch.from_numpy(buf) if enable else None
         return (image, enable)
-        #except:
-        #    return (torch.zeros([1, 32, 32, 3]), False)
 
 
 class FlipStreamSource:
