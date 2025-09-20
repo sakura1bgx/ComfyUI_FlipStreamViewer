@@ -1,13 +1,12 @@
 import base64
 import hashlib
 import html
+import io
 import json
 import threading
 import time
 from pathlib import Path
-from io import BytesIO
 
-import imageio.v3 as iio
 import requests
 import torch
 import torch.nn.functional as NNF
@@ -64,7 +63,7 @@ def atob_utf8(value):
         return ""
     return base64.b64decode(value.encode()).decode("utf-8")
 
-STREAM_COMPRESSION = 0
+STREAM_COMPRESSION = 1
 UPDATE_DELAY = 1.0
 allowed_ips = ["127.0.0.1"]
 setparam = {}
@@ -73,8 +72,9 @@ default_param = {"lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_cap
 param = default_param.copy()
 state = {"message": "", "update_and_reload": False, "presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
 frame_updating = None
-frame_buffer = None
+frame_buffer = []
 frame_mtime = 0
+frame_fps = 8
 exclude_tags = ""
 
 class AnyType(str):
@@ -94,8 +94,6 @@ html {
 
 body {
     color: lightgray;
-    background: url('/flipstreamviewer/stream') rgba(0, 0, 0, 0) no-repeat top center local;
-    background-blend-mode: overlay;
     margin: 4px;
     padding: 0px;
 }
@@ -214,6 +212,9 @@ div.row {
 
 #mainDialog {
     display: flex;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-blend-mode: overlay;
 }
 
 #captureDialog, #tagDialog, #presetDialog {
@@ -777,6 +778,12 @@ function closeTagDialog() {
 
 SCRIPT_VIEW=r"""
 var toggleViewFlag = true;
+var streamViewFlag = true;
+var streamInfo = { mtime: 0, fps: 8, count: 0 };
+var streamMTime = 0;
+var streamCache = [];
+var streamIndex = 0;
+
 function toggleView() {
     const leftPanel = document.getElementById("leftPanel");
     const rightPanel = document.getElementById("rightPanel");
@@ -808,7 +815,6 @@ function hideView() {
     const presetRightPanel = document.getElementById("presetRightPanel");
     const messageBox = document.getElementById("messageBox");
     closeCaptureDialog();
-    document.body.style.backgroundImage = "none";
     messageBox.style.visibility = "hidden";
     document.getElementById("loraPreview").src = "";
     document.querySelectorAll('.FlipStreamPreviewBox').forEach(x => x.src = "");
@@ -818,8 +824,21 @@ function hideView() {
     presetLeftPanel.style.visibility = "hidden";
     presetRightPanel.style.visibility = "hidden";
     toggleViewFlag = false;
+    streamViewFlag = false;
 }
 setTimeout(hideView, 300 * 1000);
+
+async function updateStreamView() {
+    const container = document.getElementById('mainDialog');
+    if (streamViewFlag && streamCache.length > 0) {
+        const img = streamCache[streamIndex];
+        container.style.backgroundImage = `url(${img.src})`;
+        streamIndex = (streamIndex + 1) % streamCache.length;
+    } else {
+        container.style.backgroundImage = 'none';
+    }
+}
+var updateStreamInterval = setInterval(updateStreamView, 1000 / streamInfo.fps);
 
 async function refreshView() {
     const data = await fetch("/flipstreamviewer/refresh_view")
@@ -833,13 +852,31 @@ async function refreshView() {
             x.innerText = "";
         }
     });
-    if (document.body.style.backgroundImage != "none") {
-        document.body.style.backgroundImage = `url('/flipstreamviewer/stream?mtime=${data.stream_mtime || 0}')`;
+    if (streamViewFlag) {
         document.querySelectorAll('.FlipStreamPreviewBox').forEach(async x => {
             if (x.src != "") {
                 x.src = `/flipstreamviewer/preview?label=${x.name}&mtime=${data.preview_mtime[x.id] || 0}`;
             }
         });
+
+        const response = await fetch('/flipstreamviewer/stream/info');
+        streamInfo = await response.json();
+        if (streamInfo.mtime != streamMTime) {
+            streamMTime = streamInfo.mtime;
+            clearInterval(updateStreamInterval);
+            streamIndex = 0;
+            streamCache = await Promise.all(
+                Array.from({ length: streamInfo.count }, (_, j) => 
+                    new Promise(resolve => {
+                        const img = new Image();
+                        img.onload = () => resolve(img);
+                        img.onerror = () => resolve(img);
+                        img.src = `/flipstreamviewer/stream/${j}.png?mtime=${streamInfo.mtime}`;
+                    })
+                )
+            );
+            updateStreamInterval = setInterval(updateStreamView, 1000 / streamInfo.fps);
+        }
     }
     if (data.update_and_reload) {
         updateParam(true);
@@ -851,25 +888,21 @@ setInterval(refreshView, 1000);
 SCRIPT_CAPTURE=r"""
 let capturedCanvas = document.createElement("canvas");
 async function capture() {
-    try {
-        const video = document.createElement("video");
-        video.srcObject = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        video.style.display = "none";
-        video.play();
-        video.addEventListener("loadedmetadata", () => {
-            const { videoWidth, videoHeight } = video;
-            capturedCtx = capturedCanvas.getContext("2d");
-            capturedCtx.clearRect(0, 0, capturedCanvas.width, capturedCanvas.height);
-            capturedCanvas.width = videoWidth;
-            capturedCanvas.height = videoHeight;
-            capturedCtx.drawImage(video, 0, 0);
-            video.srcObject.getTracks().forEach(track => track.stop());
-            video.srcObject = null;
-            updateCanvas();
-        });
-    } catch (error) {
-        alert("An error occurred while capture.");
-    }
+    const video = document.createElement("video");
+    video.srcObject = await navigator.mediaDevices.getDisplayMedia({ video: true });
+    video.style.display = "none";
+    video.play();
+    video.addEventListener("loadedmetadata", () => {
+        const { videoWidth, videoHeight } = video;
+        capturedCtx = capturedCanvas.getContext("2d");
+        capturedCtx.clearRect(0, 0, capturedCanvas.width, capturedCanvas.height);
+        capturedCanvas.width = videoWidth;
+        capturedCanvas.height = videoHeight;
+        capturedCtx.drawImage(video, 0, 0);
+        video.srcObject.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        updateCanvas();
+    });
 }
 
 function updateCanvas() {
@@ -911,6 +944,7 @@ async function setFrame() {
 
 SCRIPT_QUERY=r"""
 function onInputDarker(value=-1) {
+    const container = document.getElementById('mainDialog');
     value = parseFloat(value);
     if (value < 0) {
         value = document.getElementById("darkerRange").value;
@@ -918,7 +952,7 @@ function onInputDarker(value=-1) {
         document.getElementById("darkerRange").value = value;
     }
     document.getElementById("darkerValue").innerText = value; 
-    document.body.style.backgroundColor = 'rgba(0,0,0,' + value + ')';
+    container.style.backgroundColor = 'rgba(0,0,0,' + value + ')';
 }
 onInputDarker();
 
@@ -959,12 +993,29 @@ function parseQueryParam() {
 parseQueryParam();
 """
 
-@server.PromptServer.instance.routes.get("/flipstreamviewer/stream")
-async def stream(request):
+
+@server.PromptServer.instance.routes.get("/flipstreamviewer/stream/info")
+async def stream_count(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
 
-    return web.Response(body=frame_buffer, headers={"Content-Type": "image/apng"})
+    return web.json_response({"mtime": frame_mtime, "fps": frame_fps, "count": len(frame_buffer)})
+
+
+@server.PromptServer.instance.routes.get("/flipstreamviewer/stream/{frame_id:\\d+}.png")
+async def stream_frame(request):
+    if request.remote not in allowed_ips:
+        raise HTTPForbidden()
+
+    try:
+        frame_id = int(request.match_info["frame_id"])
+    except (KeyError, ValueError):
+        raise web.HTTPBadRequest(text="Invalid frame ID")
+
+    if not (0 <= frame_id < len(frame_buffer)):
+        raise web.HTTPNotFound(text="Frame not found")
+    
+    return web.Response(body=frame_buffer[frame_id], headers={"Content-Type": "image/png"})
 
 
 @server.PromptServer.instance.routes.get("/flipstreamviewer/preview")
@@ -1391,7 +1442,6 @@ async def get_status(request):
     setstate.clear()
     data = {}
     data["status_info"] = status_info
-    data["stream_mtime"] = frame_mtime
     data["preview_mtime"] = {key: state[key][0] for key in state if key.endswith("PreviewBox")}
     data["log"] = {key: state[key] for key in state if key.endswith("LogBox")}
     data["message"] = state["message"]
@@ -1458,8 +1508,8 @@ async def get_wd14tag(request):
     stt = await request.json()
     state.update(stt);
     tags = []
-    if frame_buffer is not None:
-        tags = await wd14tagger.tag(Image.fromarray(iio.imread(frame_buffer, index=0)), "wd-v1-4-moat-tagger-v2.onnx", state["wd14th"], state["wd14cth"], exclude_tags)
+    if frame_buffer:
+        tags = await wd14tagger.tag(Image.open(io.BytesIO(frame_buffer[0])), "wd-v1-4-moat-tagger-v2.onnx", state["wd14th"], state["wd14cth"], exclude_tags)
     return web.json_response({"tags": tags})
 
 
@@ -1467,15 +1517,12 @@ async def get_wd14tag(request):
 async def set_frame(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
-    
+
+    frame = base64.b64decode((await request.text()).split(',', 1)[1])
     global frame_buffer
+    frame_buffer = [frame]
     global frame_mtime
-    pngdata = base64.b64decode((await request.text()).split(',', 1)[1])
-    with BytesIO(pngdata) as data:
-        with BytesIO() as output:
-            iio.imwrite(output, [iio.imread(data)], format="png", extension=".apng", compression=STREAM_COMPRESSION)
-            frame_buffer = output.getvalue()
-            frame_mtime = time.time()
+    frame_mtime = time.time()
     return web.Response()
 
 
@@ -1728,7 +1775,7 @@ class FlipStreamFileSelect:
                 return [folder_path]
             return folder_paths.get_filename_list(folder_name)
         else:
-            return list(map(str, Path(folder_path).glob("*.*")))
+            return [str(p.relative_to(folder_path)) for p in Path(folder_path).glob("*.*")]
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1822,8 +1869,8 @@ class FlipStreamPreviewBox:
         buf = np.array(tensor[0].cpu().numpy() * 255, dtype=np.uint8)
         image = Image.fromarray(buf)
         image.thumbnail((256, 256))
-        with BytesIO() as output:
-            iio.imwrite(output, np.array(image), format="png", extension=".png", compression=STREAM_COMPRESSION)
+        with io.BytesIO() as output:
+            image.save(output, format="PNG", compress_level=STREAM_COMPRESSION)
             state[label + "PreviewBox"] = (time.time(), output.getvalue())
         return ()
 
@@ -2132,15 +2179,15 @@ class FlipStreamVideoInput:
     def run(self, path, first, step, frames):
         if not path or not Path(path).is_file():
             return (torch.zeros([1, 32, 32, 3]), False)
-        try:
-            with iio.imopen(path, "r") as file:
-                buf = [file.read(index=i) for i in range(first, first+(frames-1)*step+1, step)]
-            buf = np.stack(buf).astype(np.float32) / 255
-            enable = buf.shape[0] == frames
-            image = torch.from_numpy(buf) if enable else None
-            return (image, enable)
-        except:
-            return (torch.zeros([1, 32, 32, 3]), False)
+        #try:
+        with iio.imopen(path, "r") as file:
+            buf = [file.read(index=i) for i in range(first, first+(frames-1)*step+1, step)]
+        buf = np.stack(buf).astype(np.float32) / 255
+        enable = buf.shape[0] == frames
+        image = torch.from_numpy(buf) if enable else None
+        return (image, enable)
+        #except:
+        #    return (torch.zeros([1, 32, 32, 3]), False)
 
 
 class FlipStreamSource:
@@ -2666,18 +2713,25 @@ class FlipStreamViewer:
     CATEGORY = "FlipStreamViewer"
 
     def run(self, tensor, fps, **kwargs):
-        global frame_updating
-        global frame_buffer
-        global frame_mtime
+        fb = []
         buf = (tensor.detach().cpu().numpy() * 255).astype(np.uint8)
-        buf = np.concatenate([buf, np.flip(buf, axis=0)])
-        with BytesIO() as output:
-            iio.imwrite(output, buf, format='png', extension=".apng", compression=STREAM_COMPRESSION, fps=fps)
-            frame_buffer = output.getvalue()
-            frame_mtime = time.time()
-        print(f"FlipStreamViewer: Frame updated {len(frame_buffer)/1e6} MB")    
+        if tensor.shape[0] != 1:
+            buf = np.concatenate([buf, np.flip(buf, axis=0)])
+        for image in buf:
+            with io.BytesIO() as output:
+                img = Image.fromarray(image)
+                img.save(output, format="PNG", compress_level=STREAM_COMPRESSION)
+                fb.append(output.getvalue())
+        global frame_buffer
+        global frame_updating
+        global frame_mtime
+        global frame_fps
+        frame_buffer = fb
         frame_updating = None
+        frame_mtime = time.time()
+        frame_fps = fps
         return ()
+
 
 NODE_CLASS_MAPPINGS = {
     "FlipStreamSection": FlipStreamSection,
