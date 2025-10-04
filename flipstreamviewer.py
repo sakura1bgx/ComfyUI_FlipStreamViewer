@@ -2692,6 +2692,7 @@ class FlipStreamViewer:
                 "idle": ("FLOAT", {"default": 1.0, "min": 0.0}),
                 "fps": ("INT", {"default": 8, "min": 1, "max": 30}),
                 "loramode": ("STRING", {"default": ""}),
+                "reset_updating": ("BOOLEAN", {"default": True}),
             },
         }
 
@@ -2710,7 +2711,7 @@ class FlipStreamViewer:
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, tensor, fps, **kwargs):
+    def run(self, tensor, fps, reset_updating, **kwargs):
         fb = []
         buf = (tensor.detach().cpu().numpy() * 255).astype(np.uint8)
         if tensor.shape[0] != 1:
@@ -2725,7 +2726,8 @@ class FlipStreamViewer:
         global frame_mtime
         global frame_fps
         frame_buffer = fb
-        frame_updating = None
+        if reset_updating:
+            frame_updating = None
         frame_mtime = time.time()
         frame_fps = fps
         return ()
