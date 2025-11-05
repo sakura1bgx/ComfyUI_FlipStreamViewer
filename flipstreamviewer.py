@@ -71,7 +71,7 @@ setparam = {}
 setstate = {}
 default_param = {"lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
 param = default_param.copy()
-state = {"message": "", "update_and_reload": False, "presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
+state = {"message": "", "message_fontsize": "", "update_and_reload": False, "presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
 frame_updating = None
 frame_buffer = []
 frame_mtime = 0
@@ -256,7 +256,7 @@ div.row {
     background: transparent;
     text-align: left;
     user-select: none;
-    font-size: 1.5rem;
+    font-size: 1rem;
     text-shadow: 
     black 2px 0px,  black -2px 0px,
     black 0px -2px, black 0px 2px,
@@ -846,6 +846,8 @@ async function refreshView() {
         .then(r => r.json()).catch(e => ({ status: "Fails to refresh view: " + e }));
     document.getElementById("statusInfo").textContent = data.status_info || "Empty";
     document.getElementById("messageBox").innerText = atob_utf8(data.message) || "";
+    document.getElementById("messageBox").style.fontSize = data.message_fontsize || "1rem";
+
     document.querySelectorAll('.FlipStreamLogBox').forEach(async x => {
         if (x.id in data.log) {
             x.innerText = atob_utf8(data.log[x.id]) || "";
@@ -1446,6 +1448,7 @@ async def get_status(request):
     data["preview_mtime"] = {key: state[key][0] for key in state if key.endswith("PreviewBox")}
     data["log"] = {key: state[key] for key in state if key.endswith("LogBox")}
     data["message"] = state["message"]
+    data["message_fontsize"] = state["message_fontsize"]
     data["update_and_reload"] = state["update_and_reload"]
     state["update_and_reload"] = False
     return web.json_response(data)
@@ -1926,6 +1929,7 @@ class FlipStreamSetMessage:
         return {
             "required": {
                 "message": ("STRING", {"default": "", "multiline": True}),
+                "fontsize": ("FLOAT", {"default": 1.0, "min": 0.5, "max": 2.0, "step": 0.1}),
             },
             "optional": {
                 "hook": (any,),
@@ -1937,8 +1941,9 @@ class FlipStreamSetMessage:
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, message, hook=None):
+    def run(self, message, fontsize, hook=None):
         setstate["message"] = btoa_utf8(message)
+        setstate["message_fontsize"] = f"{fontsize}rem"
         return (hook,)
 
 
@@ -2573,7 +2578,7 @@ class FlipStreamParseJson:
     def run(self, json_input, keys, joinstr, ignore_error):
         value = []
         try:
-            for key in keys.split(","):
+            for key in keys.split("\n"):
                 value.append(json.loads(json_input, strict=False)[key.strip()])
         except Exception as e:
             if not ignore_error:
