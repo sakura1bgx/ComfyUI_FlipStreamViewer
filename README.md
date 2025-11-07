@@ -15,7 +15,7 @@
 - Check 'Extra options', 'Auto Queue', and 'instant' on the ComfyUI control panel.
 - Then click the 'Queue Prompt' button.
 
-5. The UI nodes will refresh after the workflow is completed once, so you need to click 'Update and reload' after that.
+5. The UI nodes will refresh after the workflow is completed once, so you need to click 'Update' after that.
 
 6. The 'preset' folder may be created in the current directory for saving and loading preset files.
 
@@ -74,7 +74,7 @@ python -m pip install llama-cpp-python
 ## UI Nodes
 
 - **FlipStreamSection**: A section label for UI Nodes.
-- **FlipStreamButton**: Update and Capture buttons. The Capture button can be use with FlipStreamGetFrame to get captured image.
+- **FlipStreamButton**: Capture and Update buttons. The Capture button can be use with FlipStreamGetFrame to get captured image.
 - **FlipStreamSlider**: A slider for adjusting values.
 - **FlipStreamTextBox**: A text box for inputting multiline text.
 - **FlipStreamInputBox**: An input box for various boxtype inputs. The 'U' button means update. You can choose special boxtype 'seed' or 'r4d' with the 'R' button, which means randomize. The boxtype 'r4d' can be used to generate a 4-digit part of a prompt like 'MOV_{num}'. In this case, FlipStreamTextReplace can help find '{num}' and replace with the output of the input box.
@@ -155,4 +155,5 @@ python build_sage.py
 - **quick_vid2vid.json**: Quick tuning workflow for vid2vid.
 - **quick_vid2vid_roi.json**: An example demonstrating the use of FlipStreamGetPreviewRoi and FlipStreamGate.
 - **visualnobel.json**: Visual nobel like UI using FlipStreamChat.
+
 
