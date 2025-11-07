@@ -1,11 +1,11 @@
 import base64
 import hashlib
 import html
+import io
 import json
 import threading
 import time
 from pathlib import Path
-from io import BytesIO
 
 import imageio.v3 as iio
 import requests
@@ -22,6 +22,9 @@ import server
 import folder_paths
 import comfy
 from nodes import CheckpointLoaderSimple, VAELoader
+
+import sys
+sys.path.append("ComfyUI/custom_nodes")
 
 try:
     from llama_cpp import Llama  # llama-cpp-python
@@ -49,7 +52,7 @@ except:
     film = None
 
 try:
-    from custom_nodes.comfyui_tensorrt import TensorRTLoader
+    from comfyui_tensorrt import TensorRTLoader
 except:
     TensorRTLoader = None
 
@@ -57,18 +60,22 @@ def btoa_utf8(value):
     return base64.b64encode(value.encode("utf-8")).decode()
 
 def atob_utf8(value):
+    if not value:
+        return ""
     return base64.b64decode(value.encode()).decode("utf-8")
 
-STREAM_COMPRESSION = 0
+STREAM_COMPRESSION = 1
 UPDATE_DELAY = 1.0
 allowed_ips = ["127.0.0.1"]
 setparam = {}
 setstate = {}
-param = {"lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
-state = {"message": btoa_utf8(""), "update_and_reload": False, "presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
-frame_updating = False
-frame_buffer = None
+default_param = {"lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
+param = default_param.copy()
+state = {"message": "", "message_fontsize": "", "update_and_reload": False, "presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
+frame_updating = None
+frame_buffer = []
 frame_mtime = 0
+frame_fps = 8
 exclude_tags = ""
 
 class AnyType(str):
@@ -88,8 +95,6 @@ html {
 
 body {
     color: lightgray;
-    background: url('/flipstreamviewer/stream') rgba(0, 0, 0, 0) no-repeat top center local;
-    background-blend-mode: overlay;
     margin: 4px;
     padding: 0px;
 }
@@ -173,10 +178,6 @@ div.row {
     left: 0;
 }
 
-#statusInfo {
-    line-break: anywhere;
-}
-
 #leftPanel,
 #rightPanel,
 #captureLeftPanel,
@@ -212,6 +213,9 @@ div.row {
 
 #mainDialog {
     display: flex;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-blend-mode: overlay;
 }
 
 #captureDialog, #tagDialog, #presetDialog {
@@ -244,19 +248,15 @@ div.row {
     width: 50%;
 }
 
-#toggleViewButton {
-    width: 100%;
-    height: 85%;
-    border: none;
-    background: transparent;
-}
-
 #messageBox {
     width: 100%;
-    height: 15%;
+    height: 100%;
     border: none;
+    padding: 10px;
     background: transparent;
-    font-size: 1.5rem;
+    text-align: left;
+    user-select: none;
+    font-size: 1rem;
     text-shadow: 
     black 2px 0px,  black -2px 0px,
     black 0px -2px, black 0px 2px,
@@ -294,6 +294,9 @@ function btoa_utf8(str) {
 }
 
 function atob_utf8(str) {
+    if (!str) {
+        return "";
+    }
     return decodeURIComponent(escape(atob(str)));
 }
 
@@ -776,6 +779,12 @@ function closeTagDialog() {
 
 SCRIPT_VIEW=r"""
 var toggleViewFlag = true;
+var streamViewFlag = true;
+var streamInfo = { mtime: 0, fps: 8, count: 0 };
+var streamMTime = 0;
+var streamCache = [];
+var streamIndex = 0;
+
 function toggleView() {
     const leftPanel = document.getElementById("leftPanel");
     const rightPanel = document.getElementById("rightPanel");
@@ -787,52 +796,91 @@ function toggleView() {
         rightPanel.style.visibility = "hidden";
         presetLeftPanel.style.visibility = "hidden";
         presetRightPanel.style.visibility = "hidden";
+        messageBox.style.visibility = "hidden";
         toggleViewFlag = false;
     } else {
-        document.body.style.backgroundImage = "none";
-        messageBox.style.visibility = "hidden";
-        document.getElementById("loraPreview").src = "";
-        document.querySelectorAll('.FlipStreamPreviewBox').forEach(x => x.src = "");
         leftPanel.style.visibility = "visible";
         rightPanel.style.visibility = "visible";
         presetLeftPanel.style.visibility = "visible";
         presetRightPanel.style.visibility = "visible";
+        messageBox.style.visibility = "visible";
         toggleViewFlag = true;
     }
 }
 
 function hideView() {
     const leftPanel = document.getElementById("leftPanel");
+    const centerPanel = document.getElementById("centerPanel");
     const rightPanel = document.getElementById("rightPanel");
     const presetLeftPanel = document.getElementById("presetLeftPanel");
     const presetRightPanel = document.getElementById("presetRightPanel");
     const messageBox = document.getElementById("messageBox");
     closeCaptureDialog();
-    document.body.style.backgroundImage = "none";
     messageBox.style.visibility = "hidden";
     document.getElementById("loraPreview").src = "";
     document.querySelectorAll('.FlipStreamPreviewBox').forEach(x => x.src = "");
     leftPanel.style.visibility = "hidden";
+    centerPanel.style.visibility = "hidden";
     rightPanel.style.visibility = "hidden";
     presetLeftPanel.style.visibility = "hidden";
     presetRightPanel.style.visibility = "hidden";
     toggleViewFlag = false;
+    streamViewFlag = false;
 }
 setTimeout(hideView, 300 * 1000);
+
+async function updateStreamView() {
+    const container = document.getElementById('mainDialog');
+    if (streamViewFlag && streamCache.length > 0) {
+        const img = streamCache[streamIndex];
+        container.style.backgroundImage = `url(${img.src})`;
+        streamIndex = (streamIndex + 1) % streamCache.length;
+    } else {
+        container.style.backgroundImage = 'none';
+    }
+}
+var updateStreamInterval = setInterval(updateStreamView, 1000 / streamInfo.fps);
 
 async function refreshView() {
     const data = await fetch("/flipstreamviewer/refresh_view")
         .then(r => r.json()).catch(e => ({ status: "Fails to refresh view: " + e }));
     document.getElementById("statusInfo").textContent = data.status_info || "Empty";
-    document.getElementById("messageBox").textContent = atob_utf8(data.message) || "";
-    if (document.body.style.backgroundImage != "none") {
-        document.body.style.backgroundImage = `url('/flipstreamviewer/stream?mtime=${data.stream_mtime || 0}')`;
-    }
-    document.querySelectorAll('.FlipStreamPreviewBox').forEach(async x => {
-        if (x.src != "") {
-            x.src = `/flipstreamviewer/preview?label=${x.name}&mtime=${data.preview_mtime[x.id] || 0}`;
+    document.getElementById("messageBox").innerText = atob_utf8(data.message) || "";
+    document.getElementById("messageBox").style.fontSize = data.message_fontsize || "1rem";
+
+    document.querySelectorAll('.FlipStreamLogBox').forEach(async x => {
+        if (x.id in data.log) {
+            x.innerText = atob_utf8(data.log[x.id]) || "";
+        } else {
+            x.innerText = "";
         }
     });
+    if (streamViewFlag) {
+        document.querySelectorAll('.FlipStreamPreviewBox').forEach(async x => {
+            if (x.src != "") {
+                x.src = `/flipstreamviewer/preview?label=${x.name}&mtime=${data.preview_mtime[x.id] || 0}`;
+            }
+        });
+
+        const response = await fetch('/flipstreamviewer/stream/info');
+        streamInfo = await response.json();
+        if (streamInfo.mtime != streamMTime) {
+            streamMTime = streamInfo.mtime;
+            clearInterval(updateStreamInterval);
+            streamIndex = 0;
+            streamCache = await Promise.all(
+                Array.from({ length: streamInfo.count }, (_, j) => 
+                    new Promise(resolve => {
+                        const img = new Image();
+                        img.onload = () => resolve(img);
+                        img.onerror = () => resolve(img);
+                        img.src = `/flipstreamviewer/stream/${j}.png?mtime=${streamInfo.mtime}`;
+                    })
+                )
+            );
+            updateStreamInterval = setInterval(updateStreamView, 1000 / streamInfo.fps);
+        }
+    }
     if (data.update_and_reload) {
         updateParam(true);
     }
@@ -843,25 +891,21 @@ setInterval(refreshView, 1000);
 SCRIPT_CAPTURE=r"""
 let capturedCanvas = document.createElement("canvas");
 async function capture() {
-    try {
-        const video = document.createElement("video");
-        video.srcObject = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        video.style.display = "none";
-        video.play();
-        video.addEventListener("loadedmetadata", () => {
-            const { videoWidth, videoHeight } = video;
-            capturedCtx = capturedCanvas.getContext("2d");
-            capturedCtx.clearRect(0, 0, capturedCanvas.width, capturedCanvas.height);
-            capturedCanvas.width = videoWidth;
-            capturedCanvas.height = videoHeight;
-            capturedCtx.drawImage(video, 0, 0);
-            video.srcObject.getTracks().forEach(track => track.stop());
-            video.srcObject = null;
-            updateCanvas();
-        });
-    } catch (error) {
-        alert("An error occurred while capture.");
-    }
+    const video = document.createElement("video");
+    video.srcObject = await navigator.mediaDevices.getDisplayMedia({ video: true });
+    video.style.display = "none";
+    video.play();
+    video.addEventListener("loadedmetadata", () => {
+        const { videoWidth, videoHeight } = video;
+        capturedCtx = capturedCanvas.getContext("2d");
+        capturedCtx.clearRect(0, 0, capturedCanvas.width, capturedCanvas.height);
+        capturedCanvas.width = videoWidth;
+        capturedCanvas.height = videoHeight;
+        capturedCtx.drawImage(video, 0, 0);
+        video.srcObject.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        updateCanvas();
+    });
 }
 
 function updateCanvas() {
@@ -903,6 +947,7 @@ async function setFrame() {
 
 SCRIPT_QUERY=r"""
 function onInputDarker(value=-1) {
+    const container = document.getElementById('mainDialog');
     value = parseFloat(value);
     if (value < 0) {
         value = document.getElementById("darkerRange").value;
@@ -910,7 +955,7 @@ function onInputDarker(value=-1) {
         document.getElementById("darkerRange").value = value;
     }
     document.getElementById("darkerValue").innerText = value; 
-    document.body.style.backgroundColor = 'rgba(0,0,0,' + value + ')';
+    container.style.backgroundColor = 'rgba(0,0,0,' + value + ')';
 }
 onInputDarker();
 
@@ -951,12 +996,29 @@ function parseQueryParam() {
 parseQueryParam();
 """
 
-@server.PromptServer.instance.routes.get("/flipstreamviewer/stream")
-async def stream(request):
+
+@server.PromptServer.instance.routes.get("/flipstreamviewer/stream/info")
+async def stream_count(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
 
-    return web.Response(body=frame_buffer, headers={"Content-Type": "image/apng"})
+    return web.json_response({"mtime": frame_mtime, "fps": frame_fps, "count": len(frame_buffer)})
+
+
+@server.PromptServer.instance.routes.get("/flipstreamviewer/stream/{frame_id:\\d+}.png")
+async def stream_frame(request):
+    if request.remote not in allowed_ips:
+        raise HTTPForbidden()
+
+    try:
+        frame_id = int(request.match_info["frame_id"])
+    except (KeyError, ValueError):
+        raise web.HTTPBadRequest(text="Invalid frame ID")
+
+    if not (0 <= frame_id < len(frame_buffer)):
+        raise web.HTTPNotFound(text="Frame not found")
+    
+    return web.Response(body=frame_buffer[frame_id], headers={"Content-Type": "image/png"})
 
 
 @server.PromptServer.instance.routes.get("/flipstreamviewer/preview")
@@ -1006,7 +1068,7 @@ async def viewer(request):
     def add_textbox(title, label, default, rows):
         if not label.isidentifier():
             raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
-        param.setdefault(label, default)
+        param.setdefault(label, btoa_utf8(default))
         block[f"{title}_{label}"] = f"""
             <textarea class="FlipStreamTextBox" id="{label}TextBox" style="color: lightslategray;" placeholder="{label}" rows="{rows}" name="{label}">{atob_utf8(param[label])}</textarea>"""
 
@@ -1122,6 +1184,13 @@ async def viewer(request):
                 <img class="FlipStreamPreviewBox" id="{label}PreviewBox" name="{label}" src="/flipstreamviewer/preview?label={label}" alt onerror="this.onerror = null; this.src='';" />
                 <canvas class="FlipStreamPreviewRoi" id="{label}PreviewRoi"></canvas>
             </div>"""
+    
+    def add_logbox(title, label, log, rows):
+        if not label.isidentifier():
+            raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
+        if (label + "LogBox") in state:
+            block[f"{title}_{label}"] = f"""
+            <textarea class="FlipStreamLogBox" id="{label}LogBox" style="color: lightslategray;" placeholder="{label}" rows="{rows}" name="{label}" readonly></textarea>"""
 
     hist = server.PromptServer.instance.prompt_queue.get_history(max_items=1)
     nodedict = next(iter(hist.values()))["prompt"][2] if hist else None
@@ -1144,6 +1213,8 @@ async def viewer(request):
                 add_fileselect(title, **inputs)
             if class_type == "FlipStreamPreviewBox":
                 add_previewbox(title, **inputs)
+            if class_type == "FlipStreamLogBox":
+                add_logbox(title, **inputs)
 
     text_html = f"""<html>{HEAD}<body>
     <div id="mainDialog">
@@ -1153,13 +1224,12 @@ async def viewer(request):
             </div>
             {"".join([x[1] for x in sorted(block.items())])}
         </div>
-        <div id="centerPanel">
-            <button id="toggleViewButton" onclick="toggleView()"></button>
-            <div id="messageBox" onclick="toggleView()"></div>
+        <div id="centerPanel" onclick="toggleView()">
+            <div id="messageBox"></div>
         </div>
         <div id="rightPanel">
             <div class="row"><i>Status</i></div>
-            <div id="statusInfo"></div>
+            <textarea id="statusInfo" style="color: lightslategray;" rows="2"></textarea>
             <div class="row"><i>Darker</i></div>
             <div class="row">
                 <input id="darkerRange" type="range" min="0" max="1" step="0.01" value="{state["darker"]}" oninput="onInputDarker();" />
@@ -1319,9 +1389,8 @@ async def viewer(request):
     <div id="presetDialog">
         <div id="presetLeftPanel">
         </div>
-        <div id="presetCenterPanel">
-            <button id="toggleViewButton" onclick="toggleView()"></button>
-            <div id="messageBox" onclick="toggleView()"></div>
+        <div id="presetCenterPanel" onclick="toggleView()">
+            <div id="messageBox"></div>
         </div>
         <div id="presetRightPanel">
             <div class="row">
@@ -1364,7 +1433,7 @@ async def get_status(request):
     hist = server.PromptServer.instance.prompt_queue.get_history(max_items=1)
     status_info = []
     if frame_updating:
-        status_info.append("updating")
+        status_info.append(f"updating {int(time.time() - frame_updating)}s")
     status_info.append(f"q{remain}")
     info = next(iter(hist.values()))["status"] if hist else None
     if info:
@@ -1376,9 +1445,10 @@ async def get_status(request):
     setstate.clear()
     data = {}
     data["status_info"] = status_info
-    data["stream_mtime"] = frame_mtime
     data["preview_mtime"] = {key: state[key][0] for key in state if key.endswith("PreviewBox")}
+    data["log"] = {key: state[key] for key in state if key.endswith("LogBox")}
     data["message"] = state["message"]
+    data["message_fontsize"] = state["message_fontsize"]
     data["update_and_reload"] = state["update_and_reload"]
     state["update_and_reload"] = False
     return web.json_response(data)
@@ -1442,8 +1512,8 @@ async def get_wd14tag(request):
     stt = await request.json()
     state.update(stt);
     tags = []
-    if frame_buffer is not None:
-        tags = await wd14tagger.tag(Image.fromarray(iio.imread(frame_buffer, index=0)), "wd-v1-4-moat-tagger-v2.onnx", state["wd14th"], state["wd14cth"], exclude_tags)
+    if frame_buffer:
+        tags = await wd14tagger.tag(Image.open(io.BytesIO(frame_buffer[0])), "wd-v1-4-moat-tagger-v2.onnx", state["wd14th"], state["wd14cth"], exclude_tags)
     return web.json_response({"tags": tags})
 
 
@@ -1451,15 +1521,12 @@ async def get_wd14tag(request):
 async def set_frame(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
-    
+
+    frame = base64.b64decode((await request.text()).split(',', 1)[1])
     global frame_buffer
+    frame_buffer = [frame]
     global frame_mtime
-    pngdata = base64.b64decode((await request.text()).split(',', 1)[1])
-    with BytesIO(pngdata) as data:
-        with BytesIO() as output:
-            iio.imwrite(output, [iio.imread(data)], format="png", extension=".apng", compression=STREAM_COMPRESSION)
-            frame_buffer = output.getvalue()
-            frame_mtime = time.time()
+    frame_mtime = time.time()
     return web.Response()
 
 
@@ -1517,6 +1584,8 @@ async def load_preset(request):
             buf = {"lora": buf.get("lora", "")}
 
     state.update(stt)
+    param.clear()
+    param.update(default_param)
     param.update(buf)
     state["presetTitle"] = Path(state["presetFile"]).stem
     time.sleep(UPDATE_DELAY)
@@ -1581,7 +1650,7 @@ class FlipStreamSlider:
     
     def run(self, label, default, **kwargs):
         global frame_updating
-        frame_updating = True
+        frame_updating = time.time()
         param.setdefault(label, default)
         return (float(param[label]), int(float(param[label])), bool(float(param[label])))
 
@@ -1608,8 +1677,8 @@ class FlipStreamTextBox:
     
     def run(self, label, default, **kwargs):
         global frame_updating
-        frame_updating = True
-        param.setdefault(label, btoa_utf8(default))        
+        frame_updating = time.time()
+        param.setdefault(label, btoa_utf8(default))
         return (atob_utf8(param[label]),)
 
 
@@ -1641,7 +1710,7 @@ class FlipStreamInputBox:
     
     def run(self, label, default, boxtype, **kwargs):
         global frame_updating
-        frame_updating = True
+        frame_updating = time.time()
         param.setdefault(label, default)
         t = param[label]
         v = self.floator0(t)
@@ -1673,7 +1742,7 @@ class FlipStreamSelectBox:
 
     def run(self, label, default, **kwargs):
         global frame_updating
-        frame_updating = True
+        frame_updating = time.time()
         param.setdefault(label, "")
         item = param[label] if param[label] else default
         return (item, param[label] != "")
@@ -1710,7 +1779,7 @@ class FlipStreamFileSelect:
                 return [folder_path]
             return folder_paths.get_filename_list(folder_name)
         else:
-            return list(map(str, Path(folder_path).glob("*.*")))
+            return [str(p.relative_to(folder_path)) for p in Path(folder_path).glob("*.*")]
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1738,7 +1807,7 @@ class FlipStreamFileSelect:
 
     def run(self, label, default, folder_path, **kwargs):
         global frame_updating
-        frame_updating = True
+        frame_updating = time.time()
         param.setdefault(label, "")
         file = param[label] if param[label] else default
         return (file, str(Path(folder_path, file)), param[label] != "")
@@ -1804,9 +1873,30 @@ class FlipStreamPreviewBox:
         buf = np.array(tensor[0].cpu().numpy() * 255, dtype=np.uint8)
         image = Image.fromarray(buf)
         image.thumbnail((256, 256))
-        with BytesIO() as output:
-            iio.imwrite(output, np.array(image), format="png", extension=".png", compression=STREAM_COMPRESSION)
+        with io.BytesIO() as output:
+            image.save(output, format="PNG", compress_level=STREAM_COMPRESSION)
             state[label + "PreviewBox"] = (time.time(), output.getvalue())
+        return ()
+
+
+class FlipStreamLogBox:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "label": ("STRING", {"default": "empty"}),
+                "log": ("STRING",),
+                "rows": ("INT", {"default": 3}),
+            }
+        }
+
+    RETURN_TYPES = ()
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, label, log, **kwargs):
+        state[label + "LogBox"] = btoa_utf8(log)
         return ()
 
 
@@ -1839,6 +1929,7 @@ class FlipStreamSetMessage:
         return {
             "required": {
                 "message": ("STRING", {"default": "", "multiline": True}),
+                "fontsize": ("FLOAT", {"default": 1.0, "min": 0.5, "max": 2.0, "step": 0.1}),
             },
             "optional": {
                 "hook": (any,),
@@ -1850,8 +1941,9 @@ class FlipStreamSetMessage:
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, message, hook=None):
+    def run(self, message, fontsize, hook=None):
         setstate["message"] = btoa_utf8(message)
+        setstate["message_fontsize"] = f"{fontsize}rem"
         return (hook,)
 
 
@@ -1911,7 +2003,7 @@ class FlipStreamGetParam:
 
     def run(self, label, default, b64dec):
         global frame_updating
-        frame_updating = True
+        frame_updating = time.time()
         value = default
         if label in param:
             value = param[label]
@@ -1947,7 +2039,7 @@ class FlipStreamGetPreviewRoi:
 
     def run(self, label, default_left, default_top, default_right, default_bottom, width, height):
         global frame_updating
-        frame_updating = True
+        frame_updating = time.time()
         roi_data = param.get(label + "PreviewRoi", {})
         left = int(roi_data['sx'] * width) if 'sx' in roi_data else default_left
         top = int(roi_data['sy'] * height) if 'sy' in roi_data else default_top
@@ -1996,7 +2088,12 @@ class FlipStreamTextReplace:
     CATEGORY = "FlipStreamViewer"
 
     def run(self, text, find, replace, value=None):
-        return (text.replace(find, replace.format(value)),)
+        for word in find.split(","):
+            word = word.strip()
+            if not word:
+                continue
+            text = text.replace(word, replace.format(value))
+        return (text,)
 
 
 class FlipStreamScreenGrabber:
@@ -2088,15 +2185,12 @@ class FlipStreamVideoInput:
     def run(self, path, first, step, frames):
         if not path or not Path(path).is_file():
             return (torch.zeros([1, 32, 32, 3]), False)
-        try:
-            with iio.imopen(path, "r") as file:
-                buf = [file.read(index=i) for i in range(first, first+(frames-1)*step+1, step)]
-            buf = np.stack(buf).astype(np.float32) / 255
-            enable = buf.shape[0] == frames
-            image = torch.from_numpy(buf) if enable else None
-            return (image, enable)
-        except:
-            return (torch.zeros([1, 32, 32, 3]), False)
+        with iio.imopen(path, "r") as file:
+            buf = [file.read(index=i) for i in range(first, first+(frames-1)*step+1, step)]
+        buf = np.stack(buf).astype(np.float32) / 255
+        enable = buf.shape[0] == frames
+        image = torch.from_numpy(buf) if enable else None
+        return (image, enable)
 
 
 class FlipStreamSource:
@@ -2380,8 +2474,9 @@ class FlipStreamChat:
                 "seed": ("INT", {"default": -1}),
                 "max_tokens": ("INT", {"default": 128, "min": 0}),
                 "presence_penalty": ("FLOAT", {"default": 0, "min": 0}),
-                "frequency_penalty": ("FLOAT", {"default": 0, "min": 0}),
-                "repeat_penalty": ("FLOAT", {"default": 1.0, "min": 0})
+                "frequency_penalty": ("FLOAT", {"default": 0.5, "min": 0}),
+                "repeat_penalty": ("FLOAT", {"default": 1.0, "min": 0}),
+                "response_format": ("STRING", {"default": "", "multiline": True})
             },
             "optional": {
                 "chat_model": ("CHAT_MODEL",),
@@ -2415,7 +2510,7 @@ class FlipStreamChat:
         self.model.close()
         self.model._FlipStreamChat_is_closed = True
 
-    def chat(self, system, user, stop, messages, **kwargs):
+    def chat(self, system, user, stop, messages, response_format, **kwargs):
         if system != self.system:
             self.system = system
             messages.clear()
@@ -2425,7 +2520,11 @@ class FlipStreamChat:
             messages[0] = dict(role="system", content=system)
         if user:
             messages.append(dict(role="user", content=user))
-        return self.model.create_chat_completion(messages, stop=list(filter(str.strip, stop.split(","))), **kwargs)["choices"][0]["message"]
+        if response_format:
+            response_format = json.loads(response_format)
+        else:
+            response_format = None
+        return self.model.create_chat_completion(messages, stop=list(filter(str.strip, stop.split(","))), response_format=response_format, **kwargs)["choices"][0]["message"]
 
     def run(self, model_file, n_ctx, n_gpu_layers, unload_other_models, close_after_use, system, user, instant, max_history, stop, chat_model=None, messages=None, **kwargs):
         if unload_other_models:
@@ -2444,7 +2543,7 @@ class FlipStreamChat:
         if max_history == 0:
             messages.clear()
         elif max_history >= 1:
-            messages[:] = messages[-max_history:]
+            messages[:] = messages[:max_history]
         self.load_model(model_file, n_ctx, n_gpu_layers)
         if instant:
             res = self.chat(system, user, stop, messages.copy(), **kwargs)
@@ -2458,6 +2557,33 @@ class FlipStreamChat:
         if close_after_use:
             self.close_model()
         return (self.model, output, messages)
+
+
+class FlipStreamParseJson:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "json_input": ("STRING", {"default": "", "multiline": True}),
+                "keys": ("STRING", {"default": "", "multiline": True}),
+                "joinstr": ("STRING", {"default": ",", "multiline": True}),
+                "ignore_error": ("BOOLEAN", {"default": True}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, json_input, keys, joinstr, ignore_error):
+        value = []
+        try:
+            for key in keys.split("\n"):
+                value.append(json.loads(json_input, strict=False)[key.strip()])
+        except Exception as e:
+            if not ignore_error:
+                raise RuntimeError(f"FlipStreamParseJsonItem: Invalid JSON input: {e}: {json_input}")
+        return (joinstr.join(value),)
 
 
 class FlipStreamBatchPrompt:
@@ -2571,6 +2697,7 @@ class FlipStreamViewer:
                 "idle": ("FLOAT", {"default": 1.0, "min": 0.0}),
                 "fps": ("INT", {"default": 8, "min": 1, "max": 30}),
                 "loramode": ("STRING", {"default": ""}),
+                "reset_updating": ("BOOLEAN", {"default": True}),
             },
         }
 
@@ -2589,18 +2716,27 @@ class FlipStreamViewer:
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, tensor, fps, **kwargs):
-        global frame_updating
-        global frame_buffer
-        global frame_mtime
+    def run(self, tensor, fps, reset_updating, **kwargs):
+        fb = []
         buf = (tensor.detach().cpu().numpy() * 255).astype(np.uint8)
-        buf = np.concatenate([buf, np.flip(buf, axis=0)])
-        with BytesIO() as output:
-            iio.imwrite(output, buf, format='png', extension=".apng", compression=STREAM_COMPRESSION, fps=fps)
-            frame_buffer = output.getvalue()
-            frame_mtime = time.time()
-        frame_updating = False
+        if tensor.shape[0] != 1:
+            buf = np.concatenate([buf, np.flip(buf, axis=0)])
+        for image in buf:
+            with io.BytesIO() as output:
+                img = Image.fromarray(image)
+                img.save(output, format="PNG", compress_level=STREAM_COMPRESSION)
+                fb.append(output.getvalue())
+        global frame_buffer
+        global frame_updating
+        global frame_mtime
+        global frame_fps
+        frame_buffer = fb
+        if reset_updating:
+            frame_updating = None
+        frame_mtime = time.time()
+        frame_fps = fps
         return ()
+
 
 NODE_CLASS_MAPPINGS = {
     "FlipStreamSection": FlipStreamSection,
@@ -2617,6 +2753,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamFileSelect_Input": FlipStreamFileSelect_Input,
     "FlipStreamFileSelect_Output": FlipStreamFileSelect_Output,
     "FlipStreamPreviewBox": FlipStreamPreviewBox,
+    "FlipStreamLogBox": FlipStreamLogBox,
     "FlipStreamSetUpdateAndReload": FlipStreamSetUpdateAndReload,
     "FlipStreamSetMessage": FlipStreamSetMessage,
     "FlipStreamSetParam": FlipStreamSetParam,
@@ -2634,6 +2771,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamRembg": FlipStreamRembg,
     "FlipStreamSegMask": FlipStreamSegMask,
     "FlipStreamChat": FlipStreamChat,
+    "FlipStreamParseJson": FlipStreamParseJson,
     "FlipStreamBatchPrompt": FlipStreamBatchPrompt,
     "FlipStreamFilmVfi": FlipStreamFilmVfi,
     "FlipStreamViewer": FlipStreamViewer,
@@ -2654,6 +2792,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamFileSelect_Input": "FlipStreamFileSelect_Input",
     "FlipStreamFileSelect_Output": "FlipStreamFileSelect_Output",
     "FlipStreamPreviewBox": "FlipStreamPreviewBox",
+    "FlipStreamLogBox": "FlipStreamLogBox",
     "FlipStreamSetUpdateAndReload": "FlipStreamSetUpdateAndReload",
     "FlipStreamSetMessage": "FlipStreamSetMessage",
     "FlipStreamSetParam": "FlipStreamSetParam",
@@ -2671,6 +2810,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamRembg": "FlipStreamRembg",
     "FlipStreamSegMask": "FlipStreamSegMask",
     "FlipStreamChat": "FlipStreamChat",
+    "FlipStreamParseJson": "FlipStreamParseJson",
     "FlipStreamBatchPrompt": "FlipStreamBatchPrompt",
     "FlipStreamFilmVfi": "FlipStreamFilmVfi",
     "FlipStreamViewer": "FlipStreamViewer",
