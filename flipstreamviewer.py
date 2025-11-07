@@ -32,11 +32,6 @@ except:
     Llama = None
 
 try:
-    wd14tagger = __import__("comfyui-wd14-tagger").wd14tagger
-except:
-    wd14tagger = None
-
-try:
     rembg = __import__("comfyui-inspyrenet-rembg")
 except:
     rembg = None
@@ -69,14 +64,14 @@ UPDATE_DELAY = 1.0
 allowed_ips = ["127.0.0.1"]
 setparam = {}
 setstate = {}
+setframe_mtime = 0
 default_param = {"lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
 param = default_param.copy()
-state = {"message": "", "message_fontsize": "", "update_and_reload": False, "presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "wd14th": 0.35, "wd14cth": 0.85}
+state = {"message": "", "message_fontsize": "", "update_and_reload": False, "presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0}
 frame_updating = None
 frame_buffer = []
 frame_mtime = 0
 frame_fps = 8
-exclude_tags = ""
 
 class AnyType(str):
     def __ne__(self, __value: object) -> bool:
@@ -242,9 +237,7 @@ div.row {
     width: 80%;
 }
 
-#darkerRange,
-#wd14thRange,
-#wd14cthRange {
+#darkerRange {
     width: 50%;
 }
 
@@ -314,9 +307,7 @@ function getStateAsJson(force_state={}) {
     const loraLinkHref = document.getElementById("loraLink").getAttribute("href");
     const loraPreviewSrc = document.getElementById("loraPreview").getAttribute("src");
     const darker = parseFloat(document.getElementById("darkerRange").value);
-    const wd14th = parseFloat(document.getElementById("wd14thRange").value);
-    const wd14cth = parseFloat(document.getElementById("wd14cthRange").value);
-    var res = { presetTitle: presetTitle, presetFolder: presetFolder, presetFile: presetFile, loraRate: loraRate, loraRank: loraRank, loraFolder: loraFolder, loraFile: loraFile, loraTagOptions: loraTagOptions, loraTag: loraTag, loraLinkHref: loraLinkHref, loraPreviewSrc: loraPreviewSrc, loraTagOptions: loraTagOptions, darker: darker, wd14th: wd14th, wd14cth: wd14cth };
+    var res = { presetTitle: presetTitle, presetFolder: presetFolder, presetFile: presetFile, loraRate: loraRate, loraRank: loraRank, loraFolder: loraFolder, loraFile: loraFile, loraTagOptions: loraTagOptions, loraTag: loraTag, loraLinkHref: loraLinkHref, loraPreviewSrc: loraPreviewSrc, loraTagOptions: loraTagOptions, darker: darker };
     document.querySelectorAll('.FlipStreamFolderSelect').forEach(x => res[x.name] = x.value);
     res = Object.assign(res, force_state);
     return res;
@@ -664,17 +655,6 @@ function randomTag() {
                 loraInput.value = loraTag;
             }
         }
-    }
-}
-
-async function addWD14Tag() {
-    const json = await (await fetch("/flipstreamviewer/get_wd14tag", {
-        method: "POST",
-        body: JSON.stringify(getStateAsJson()),
-        headers: {"Content-Type": "application/json"}
-    })).json();
-    if (json.tags != "") {
-        loraInput.value = json.tags + "\n\n" + loraInput.value;
     }
 }
 
@@ -1055,6 +1035,18 @@ async def viewer(request):
         block[f"{title}_{section}"] = f"""
             <div class="row"><i>{section}</i></div>"""
 
+    def add_button(title, update, capture, hook):
+        block[f"{title}"] = f"""
+            <div class="row">"""
+        if update:
+            block[f"{title}"] += f"""
+                <button id="updateButton" class="willreload" onclick="updateParam(true)">Update</button>"""
+        if capture:
+            block[f"{title}"] += f"""
+                <button onclick="capture()">Capture</button>"""
+        block[f"{title}"] += f"""
+            </div>"""
+
     def add_slider(title, label, default, min, max, step):
         if not label.isidentifier():
             raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
@@ -1201,6 +1193,8 @@ async def viewer(request):
             inputs = node["inputs"]
             if class_type == "FlipStreamSection":
                 add_section(title, **inputs)
+            if class_type == "FlipStreamButton":
+                add_button(title, **inputs)
             if class_type == "FlipStreamSlider":
                 add_slider(title, **inputs)
             if class_type == "FlipStreamTextBox":
@@ -1219,9 +1213,6 @@ async def viewer(request):
     text_html = f"""<html>{HEAD}<body>
     <div id="mainDialog">
         <div id="leftPanel">
-            <div class="row">
-                <button id="updateButton" class="willreload" onclick="updateParam(true)">Update and reload</button>
-            </div>
             {"".join([x[1] for x in sorted(block.items())])}
         </div>
         <div id="centerPanel" onclick="toggleView()">
@@ -1229,24 +1220,11 @@ async def viewer(request):
         </div>
         <div id="rightPanel">
             <div class="row"><i>Status</i></div>
-            <textarea id="statusInfo" style="color: lightslategray;" rows="2"></textarea>
+            <textarea id="statusInfo" style="color: lightslategray;" rows="5"></textarea>
             <div class="row"><i>Darker</i></div>
             <div class="row">
                 <input id="darkerRange" type="range" min="0" max="1" step="0.01" value="{state["darker"]}" oninput="onInputDarker();" />
                 <span id="darkerValue">{state["darker"]}</span>drk
-            </div>
-            <div class="row"><i>Tagger</i></div>
-            <div class="row">
-                <button onclick="capture()">Capture</button>
-                <button onclick="addWD14Tag()">WD14</button>
-            </div>
-            <div class="row">
-                <input id="wd14thRange" type="range" min="0" max="1" step="0.01" value="{state["wd14th"]}" oninput="wd14thValue.innerText = this.value;" />
-                <span id="wd14thValue">{state["wd14th"]}</span>wth
-            </div>
-            <div class="row">
-                <input id="wd14cthRange" type="range" min="0" max="1" step="0.01" value="{state["wd14cth"]}" oninput="wd14cthValue.innerText = this.value;" />
-                <span id="wd14cthValue">{state["wd14cth"]}</span>cth
             </div>
             <div class="row"><i>Preset</i></div>            
             <select id="presetFolderSelect" class="willreload" onchange="updateParam(true)">
@@ -1501,22 +1479,6 @@ async def get_lorainfo(request):
     return web.json_response(lorainfo)
 
 
-@server.PromptServer.instance.routes.post("/flipstreamviewer/get_wd14tag")
-async def get_wd14tag(request):
-    if request.remote not in allowed_ips:
-        raise HTTPForbidden()
-
-    if wd14tagger is None:
-        raise RuntimeError("get_wd14tag: ComfyUI-WD14-Tagger must be installed to use this function.")
-
-    stt = await request.json()
-    state.update(stt);
-    tags = []
-    if frame_buffer:
-        tags = await wd14tagger.tag(Image.open(io.BytesIO(frame_buffer[0])), "wd-v1-4-moat-tagger-v2.onnx", state["wd14th"], state["wd14cth"], exclude_tags)
-    return web.json_response({"tags": tags})
-
-
 @server.PromptServer.instance.routes.post("/flipstreamviewer/set_frame")
 async def set_frame(request):
     if request.remote not in allowed_ips:
@@ -1524,9 +1486,11 @@ async def set_frame(request):
 
     frame = base64.b64decode((await request.text()).split(',', 1)[1])
     global frame_buffer
-    frame_buffer = [frame]
     global frame_mtime
+    global setframe_mtime
+    frame_buffer = [frame]
     frame_mtime = time.time()
+    setframe_mtime = frame_mtime
     return web.Response()
 
 
@@ -1623,6 +1587,27 @@ class FlipStreamSection:
     CATEGORY = "FlipStreamViewer"
 
     def run(self, section, hook=None):
+        return (hook,)
+
+
+class FlipStreamButton:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "update": ("BOOLEAN", {"default": True}),
+                "capture": ("BOOLEAN", {"default": True}),
+            },
+            "optional": {
+                "hook": (any,),
+            }
+        }
+
+    RETURN_TYPES = (any,)
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, hook=None, **kwargs):
         return (hook,)
 
 
@@ -2096,6 +2081,40 @@ class FlipStreamTextReplace:
         return (text,)
 
 
+class FlipStreamGetFrame:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "index": ("INT", {"default": 0, "min": 0}),
+                "frames": ("INT", {"default": 1, "min": 1}),
+                "capture_only": ("BOOLEAN", {"default": True}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "BOOLEAN")
+    RETURN_NAMES = ("image", "enable")
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    @classmethod
+    def IS_CHANGED(cls, capture_only, **kwargs):
+        if capture_only:
+            return setframe_mtime
+        else:
+            return frame_mtime
+    
+    def run(self, index, frames, **kwargs):
+        images_list = [
+            np.array(Image.open(io.BytesIO(frame_buffer[i]))) 
+            for i in range(index, min(index + frames, len(frame_buffer)))
+        ]        
+        if not images_list:
+            return (torch.zeros((1, 64, 64, 3), dtype=torch.float32), False)
+        image_batch = np.stack(images_list)
+        return (torch.from_numpy(image_batch).float() / 255.0, True)
+
+
 class FlipStreamScreenGrabber:
     @classmethod
     def INPUT_TYPES(s):
@@ -2184,7 +2203,7 @@ class FlipStreamVideoInput:
 
     def run(self, path, first, step, frames):
         if not path or not Path(path).is_file():
-            return (torch.zeros([1, 32, 32, 3]), False)
+            return (torch.zeros((1, 64, 64, 3)), False)
         with iio.imopen(path, "r") as file:
             buf = [file.read(index=i) for i in range(first, first+(frames-1)*step+1, step)]
         buf = np.stack(buf).astype(np.float32) / 255
@@ -2334,7 +2353,7 @@ class FlipStreamGate:
         return (model, pos, neg, latent, a, b, c, d, e, f, g, h)
 
 
-class FlipStreamRembg:    
+class FlipStreamRembg:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -2461,7 +2480,7 @@ class FlipStreamChat:
             "required": {
                 "model_file": ([path.name for path in Path(folder_paths.models_dir, "LLM").glob("*.gguf")],),
                 "n_ctx": ("INT", {"default": 2048}),
-                "n_gpu_layers": ("INT", {"default": -1}),
+                "n_gpu_layers": ("INT", {"default": -1, "min": -1}),
                 "unload_other_models": ("BOOLEAN", {"default": False}),
                 "close_after_use": ("BOOLEAN", {"default": False}),
                 "system": ("STRING", {"default": "", "multiline": True}),
@@ -2693,20 +2712,17 @@ class FlipStreamViewer:
             "required": {
                 "tensor": ("IMAGE",),
                 "allowip": ("STRING", {"default": ""}),
-                "wd14exc": ("STRING", {"default": ""}),
                 "idle": ("FLOAT", {"default": 1.0, "min": 0.0}),
-                "fps": ("INT", {"default": 8, "min": 1, "max": 30}),
+                "fps": ("INT", {"default": 16, "min": 1, "max": 30}),
                 "loramode": ("STRING", {"default": ""}),
                 "reset_updating": ("BOOLEAN", {"default": True}),
             },
         }
 
     @classmethod
-    def IS_CHANGED(cls, allowip, wd14exc, idle, loramode, **kwargs):
+    def IS_CHANGED(cls, allowip, idle, loramode, **kwargs):
         global allowed_ips
-        global exclude_tags
         allowed_ips = ["127.0.0.1"] + list(map(str.strip, allowip.split(",")))
-        exclude_tags = wd14exc
         state["loraMode"] = loramode
         time.sleep(idle)
         return None
@@ -2740,6 +2756,7 @@ class FlipStreamViewer:
 
 NODE_CLASS_MAPPINGS = {
     "FlipStreamSection": FlipStreamSection,
+    "FlipStreamButton": FlipStreamButton,
     "FlipStreamSlider": FlipStreamSlider,
     "FlipStreamTextBox": FlipStreamTextBox,
     "FlipStreamInputBox": FlipStreamInputBox,
@@ -2758,6 +2775,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamSetMessage": FlipStreamSetMessage,
     "FlipStreamSetParam": FlipStreamSetParam,
     "FlipStreamGetParam": FlipStreamGetParam,
+    "FlipStreamGetFrame": FlipStreamGetFrame,
     "FlipStreamGetPreviewRoi": FlipStreamGetPreviewRoi,
     "FlipStreamImageSize": FlipStreamImageSize,
     "FlipStreamTextReplace": FlipStreamTextReplace,
@@ -2779,6 +2797,7 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamSection": "FlipStreamSection",
+    "FlipStreamButton": "FlipStreamButton",
     "FlipStreamSlider": "FlipStreamSlider",
     "FlipStreamTextBox": "FlipStreamTextBox",
     "FlipStreamInputBox": "FlipStreamInputBox",
@@ -2797,6 +2816,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamSetMessage": "FlipStreamSetMessage",
     "FlipStreamSetParam": "FlipStreamSetParam",
     "FlipStreamGetParam": "FlipStreamGetParam",
+    "FlipStreamGetFrame": "FlipStreamGetFrame",
     "FlipStreamGetPreviewRoi": "FlipStreamGetPreviewRoi",
     "FlipStreamImageSize": "FlipStreamImageSize",
     "FlipStreamTextReplace": "FlipStreamTextReplace",
