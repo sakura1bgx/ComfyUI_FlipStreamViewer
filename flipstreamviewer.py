@@ -1035,15 +1035,15 @@ async def viewer(request):
         block[f"{title}_{section}"] = f"""
             <div class="row"><i>{section}</i></div>"""
 
-    def add_button(title, update, capture, hook):
+    def add_button(title, capture, update, hook):
         block[f"{title}"] = f"""
             <div class="row">"""
-        if update:
-            block[f"{title}"] += f"""
-                <button id="updateButton" class="willreload" onclick="updateParam(true)">Update</button>"""
         if capture:
             block[f"{title}"] += f"""
                 <button onclick="capture()">Capture</button>"""
+        if update:
+            block[f"{title}"] += f"""
+                <button id="updateButton" class="willreload" onclick="updateParam(true)">Update</button>"""
         block[f"{title}"] += f"""
             </div>"""
 
@@ -1595,8 +1595,8 @@ class FlipStreamButton:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "update": ("BOOLEAN", {"default": True}),
                 "capture": ("BOOLEAN", {"default": True}),
+                "update": ("BOOLEAN", {"default": True}),
             },
             "optional": {
                 "hook": (any,),
