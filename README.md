@@ -27,7 +27,6 @@
 ## Optional Custom Nodes dependencies
 
 The following custom nodes can be used as needed:
-- ComfyUI-WD14-Tagger: For Tagger
 - ComfyUI-Inspyrenet-Rembg: For FlipStreamRembg
 - ComfyUI-Florence2: For FlipStreamSegMask
 - ComfyUI-Frame-Interpolation: For FlipStreamFilmVfi
@@ -35,6 +34,7 @@ The following custom nodes can be used as needed:
 The following custom nodes may also be used within workflows:
 - ComfyUI Impact Pack
 - LoRA Tag Loader for ComfyUI
+- ComfyUI-WD14-Tagger
 - ComfyUI-AnimateDiff-Evolved
 - ComfyUI-VideoHelperSuite
 - ComfyUI-DepthAnythingV2
@@ -44,6 +44,8 @@ The following custom nodes may also be used within workflows:
 
 llama-cpp-python for FlipStreamChat:
 ```
+REM Before that, may be need to install Visual Studio 2022, VC++ development options and cmake
+set PATH=D:\ComfyUI_windows_portable\python_embeded;D:\ComfyUI_windows_portable\python_embeded\Scripts;%PATH%
 cd python_embeded
 python -m pip install scikit-build-core
 python -m pip install cmake
@@ -61,7 +63,6 @@ python -m pip install llama-cpp-python
 - **Status**: The right panel shows ComfyUI status and error information.
 - **Darker**: You can adjust the image brightness on the viewer using the darker parameter. It can also be set via query:
 `http://localhost:8188/flipstreamviewer?darker=0.33`
-- **Tagger**: You can capture screenshots and generate tags from images using WD14. It depends on ComfyUI-WD14-Tagger.
 - **Preset**: You can save and load parameters that are set on viewer controls. The 'M' button means Move to another folder. It can also be set via query:
 `http://localhost:8188/flipstreamviewer?showPresetDialog=1&presetFolder=folder_name&presetFile=file_name.json`
 - **Lora**: You can select LoRA and choose tags. It can also choose random tags. The LoRA preview box can be clicked to jump to the Civitai LoRA page if found. The 'M' button means Move to another folder. The 'T' button means Toggle. The 'R' button means Random choose.
@@ -73,6 +74,7 @@ python -m pip install llama-cpp-python
 ## UI Nodes
 
 - **FlipStreamSection**: A section label for UI Nodes.
+- **FlipStreamButton**: Update and Capture buttons. The Capture button can be use with FlipStreamGetFrame to get captured image.
 - **FlipStreamSlider**: A slider for adjusting values.
 - **FlipStreamTextBox**: A text box for inputting multiline text.
 - **FlipStreamInputBox**: An input box for various boxtype inputs. The 'U' button means update. You can choose special boxtype 'seed' or 'r4d' with the 'R' button, which means randomize. The boxtype 'r4d' can be used to generate a 4-digit part of a prompt like 'MOV_{num}'. In this case, FlipStreamTextReplace can help find '{num}' and replace with the output of the input box.
@@ -94,6 +96,7 @@ python -m pip install llama-cpp-python
 - **FlipStreamSetMessage**: Sets a message for the message box at the bottom of the center panel.
 - **FlipStreamSetParam**: A node for setting parameters. However, it needs a reload to update the value in the viewer UI.
 - **FlipStreamGetParam**: A node for getting parameters. 'lora' is a prepared parameter that contains text at the Lora input. Some prompts can contain '{lora}' and FlipStreamTextReplace can help find '{lora}' and replace it with the output of the get param node of 'lora'. 'b64dec' is true for 'lora' and other 'FlipStreamTextBox' parameters, because these multiline parameters are internally base64 encoded.
+- **FlipStreamGetFrame**: A node for get image from frame buffer. It can be use with FlipStreamButton - Capture button to get captured image.
 - **FlipStreamGetPreviewRoi**: A node for obtaining the preview ROI (Region of Interest) selection.
 - **FlipStreamImageSize**: A node for getting image size.
 - **FlipStreamTextReplace**: A node for replacing text. It will output the result of `text.replace(find, replace.format(value))`.
@@ -126,7 +129,21 @@ append text
 
 ## For More Speed
 
-- ComfyUI commandline options '--fast --fp8_e4m3fn-unet' are good for speed, however it depends on system and model.
+- ComfyUI commandline options '--mmap-torch-files --fp8_e4m3fn-text-enc --fast' are good for speed, however it depends on system and model.
+- And '--use-sage-attention' option will good for RTX50xx speed up.
+```
+REM Before that, may be need to install Visual Studio 2022, VC++ development options and cmake. Also need to set PATH for git.
+REM Before that, setup the same version of comfyui python from official installer, then place include and libs in python_embeded.
+REM You can get build_sage.py from https://github.com/thu-ml/SageAttention/issues/228#issuecomment-3483944852
+set PATH=D:\ComfyUI_windows_portable\python_embeded;D:\ComfyUI_windows_portable\python_embeded\Scripts;%PATH%
+cd python_embeded
+python -m pip install ninja
+python -m pip install -U --pre triton-windows
+git clone https://github.com/thu-ml/SageAttention.git
+cd SageAttention
+copy ..\build_sage.py .
+python build_sage.py
+```
 
 ## Workflow Examples
 
@@ -138,3 +155,4 @@ append text
 - **quick_vid2vid.json**: Quick tuning workflow for vid2vid.
 - **quick_vid2vid_roi.json**: An example demonstrating the use of FlipStreamGetPreviewRoi and FlipStreamGate.
 - **visualnobel.json**: Visual nobel like UI using FlipStreamChat.
+
