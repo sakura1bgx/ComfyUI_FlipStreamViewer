@@ -62,16 +62,17 @@ def atob_utf8(value):
 STREAM_COMPRESSION = 1
 UPDATE_DELAY = 1.0
 allowed_ips = ["127.0.0.1"]
-setparam = {}
-setstate = {}
-setframe_mtime = 0
+refresh_data = {}
+refresh_param = {}
 default_param = {"lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
 param = default_param.copy()
-state = {"message": "", "message_fontsize": "", "update_and_reload": False, "presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0}
+state = {"presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0}
 frame_updating = None
 frame_buffer = []
 frame_mtime = 0
-frame_fps = 8
+frame_fps = 16
+setframe_mtime = 0
+setframe_buffer = []
 
 class AnyType(str):
     def __ne__(self, __value: object) -> bool:
@@ -341,8 +342,6 @@ function setParam(param) {
 }
 
 function updateParam(reload=false, force_state={}, force_param={}, search="") {
-    var updateButton = document.getElementById("updateButton");
-    updateButton.disabled = true;
     fetch("/flipstreamviewer/update_param", {
         method: "POST",
         body: JSON.stringify([getStateAsJson(force_state), getParamAsJson(force_param)]),
@@ -358,7 +357,6 @@ function updateParam(reload=false, force_state={}, force_param={}, search="") {
     }).catch(error => {
         alert("An error occurred while updating parameter.");
     });
-    updateButton.disabled = false;
 }
 
 function setupPreviewRoi() {
@@ -765,6 +763,15 @@ var streamMTime = 0;
 var streamCache = [];
 var streamIndex = 0;
 
+function detailsState() {
+    const ds = document.querySelectorAll('details');
+    ds.forEach((d, i) => d.open = sessionStorage.getItem(`details_state-${i}`) === 'open');
+    document.addEventListener('toggle', e => {
+        sessionStorage.setItem(`details_state-${Array.from(ds).indexOf(e.target)}`, e.target.open ? 'open' : 'closed');
+    }, true);
+}
+detailsState();
+
 function toggleView() {
     const leftPanel = document.getElementById("leftPanel");
     const rightPanel = document.getElementById("rightPanel");
@@ -827,7 +834,18 @@ async function refreshView() {
     document.getElementById("statusInfo").textContent = data.status_info || "Empty";
     document.getElementById("messageBox").innerText = atob_utf8(data.message) || "";
     document.getElementById("messageBox").style.fontSize = data.message_fontsize || "1rem";
-
+    for (const k in data.param) {
+        const el = document.querySelector(`[name="${k}"]`);
+        if (el) {
+            if (el.classList.contains('FlipStreamTextBox')) {
+                el.value = atob_utf8(data.param[k]);
+            } else if (el.type === 'range') {
+                el.value = parseFloat(data.param[k]);
+            } else {
+                el.value = data.param[k];
+            }
+        }
+    }
     document.querySelectorAll('.FlipStreamLogBox').forEach(async x => {
         if (x.id in data.log) {
             x.innerText = atob_utf8(data.log[x.id]) || "";
@@ -1033,7 +1051,9 @@ async def viewer(request):
 
     def add_section(title, section, hook):
         block[f"{title}_{section}"] = f"""
-            <div class="row"><i>{section}</i></div>"""
+          </details>
+          <details>
+            <summary><i>{section}</i></summary>"""
 
     def add_button(title, capture, update, hook):
         block[f"{title}"] = f"""
@@ -1043,7 +1063,7 @@ async def viewer(request):
                 <button onclick="capture()">Capture</button>"""
         if update:
             block[f"{title}"] += f"""
-                <button id="updateButton" class="willreload" onclick="updateParam(true)">Update</button>"""
+                <button class="willreload" onclick="updateParam(true)">Update</button>"""
         block[f"{title}"] += f"""
             </div>"""
 
@@ -1072,19 +1092,19 @@ async def viewer(request):
             block[f"{title}_{label}"] = f"""
             <div class="row" style="color: lightslategray;">
                 {label}: <input class="FlipStreamInputBox" id="{label}InputBox" style="color: lightslategray;" placeholder="{label}" type="number" name="{label}" value="{param[label]}" />
-                <button onclick="{label}InputBox.value=Math.floor(Math.random()*1e7); updateParam()">R</button>
+                <button onclick="{label}InputBox.value=Math.floor(Math.random()*1e7); updateParam(true)">R</button>
             </div>"""
         elif boxtype == "r4d":
             block[f"{title}_{label}"] = f"""
             <div class="row" style="color: lightslategray;">
                 {label}: <input class="FlipStreamInputBox" id="{label}InputBox" style="color: lightslategray;" placeholder="{label}" type="number" name="{label}" value="{param[label]}" />
-                <button onclick="{label}InputBox.value=Math.floor(Math.random()*1e4); updateParam()">R</button>
+                <button onclick="{label}InputBox.value=Math.floor(Math.random()*1e4); updateParam(true)">R</button>
             </div>"""
         else:
             block[f"{title}_{label}"] = f"""
             <div class="row" style="color: lightslategray;">
                 {label}: <input class="FlipStreamInputBox" id="{label}InputBox" style="color: lightslategray;" placeholder="{label}" type="{boxtype}" name="{label}" value="{param[label]}" />
-                <button onclick="updateParam()">U</button>
+                <button onclick="updateParam(true)">U</button>
             </div>"""
 
     def add_selectbox(title, label, default, listitems):
@@ -1133,7 +1153,7 @@ async def viewer(request):
             files = sorted(Path(folder_path, mode, state[f"{label}Folder"]).glob("*.*"))
             files = [Path(file).relative_to(folder_path) for file in files]
         else:
-            files = [Path(file) for file in FlipStreamFileSelect.get_filelist(folder_name, folder_path)]
+            files = [Path(file) for file in FlipStreamFileSelect.get_filelist(folder_name, Path(folder_path, mode))]
         
         png_files = [file for file in files if file.suffix.lower() == '.png']
         other_files = [file for file in files if file.suffix.lower() != '.png']
@@ -1213,20 +1233,25 @@ async def viewer(request):
     text_html = f"""<html>{HEAD}<body>
     <div id="mainDialog">
         <div id="leftPanel">
+          <details>
+            <summary><i>Input</i></summary>
             {"".join([x[1] for x in sorted(block.items())])}
+          </details>
         </div>
         <div id="centerPanel" onclick="toggleView()">
             <div id="messageBox"></div>
         </div>
         <div id="rightPanel">
-            <div class="row"><i>Status</i></div>
+          <details>
+            <summary><i>Status</i></summary>
             <textarea id="statusInfo" style="color: lightslategray;" rows="5"></textarea>
-            <div class="row"><i>Darker</i></div>
             <div class="row">
                 <input id="darkerRange" type="range" min="0" max="1" step="0.01" value="{state["darker"]}" oninput="onInputDarker();" />
                 <span id="darkerValue">{state["darker"]}</span>drk
             </div>
-            <div class="row"><i>Preset</i></div>            
+          </details>
+          <details>
+            <summary><i>Preset</i></summary>           
             <select id="presetFolderSelect" class="willreload" onchange="updateParam(true)">
                 <option value="" selected>preset folder</option>
                 {"".join([f'<option value="{dir.name}"{" selected" if state["presetFolder"] == dir.name else ""}>{dir.name}</option>' for dir in Path("preset").glob("*/")])}
@@ -1251,7 +1276,9 @@ async def viewer(request):
                 <button class="willreload" onclick="loadPreset()">Load</button>
                 <button class="willreload" onclick="loadPreset(true)">LoraOnly</button>
             </div>
-            <div class="row"><i>Lora</i></div>
+          </details>
+          <details>
+            <summary><i>Lora</i></summary>
             <select id="loraFolderSelect" class="willreload" onchange="updateParam(true)">
                 <option value="" selected>lora folder</option>
                 {"".join([f'<option value="{dir.name}"{" selected" if state["loraFolder"] == dir.name else ""}>{dir.name}</option>' for dir in Path("ComfyUI/models/loras", state["loraMode"]).glob("*/")])}
@@ -1311,9 +1338,9 @@ async def viewer(request):
             </select>
             <div class="row">
                 <button onclick="showTagDialog()">Choose</button>
-                <button onclick="updateParam()">Update</button>
+                <button onclick="updateParam(true)">Update</button>
                 <button onclick="clearLoraInput()">Clr</button>
-                <button onclick="showTagDialog();tagCSel();tagRSel();tagOK();updateParam()">R</button>
+                <button onclick="showTagDialog();tagCSel();tagRSel();tagOK();updateParam(true)">R</button>
             </div>
             <textarea id="loraInput" placeholder="Enter lora" rows="12">{atob_utf8(param["lora"])}</textarea>
             <div class="row">
@@ -1321,6 +1348,7 @@ async def viewer(request):
                     <img id="loraPreview" src="{state["loraPreviewSrc"]}" alt onerror="this.onerror = null; this.src='';" />
                 </a>
             </div>
+          </details>
         </div>
     </div>
     <div id="captureDialog">
@@ -1419,16 +1447,13 @@ async def get_status(request):
         status_info.append(info["status_str"])
         status_info += [errinfo[key] for key in ["node_id", "node_type", "exception_message", "exception_type"] if key in errinfo]
 
-    state.update(setstate)
-    setstate.clear()
-    data = {}
+    data = refresh_data.copy()
+    data["param"] = refresh_param.copy()
+    param.update(refresh_param)
+    refresh_param.clear()
     data["status_info"] = status_info
     data["preview_mtime"] = {key: state[key][0] for key in state if key.endswith("PreviewBox")}
     data["log"] = {key: state[key] for key in state if key.endswith("LogBox")}
-    data["message"] = state["message"]
-    data["message_fontsize"] = state["message_fontsize"]
-    data["update_and_reload"] = state["update_and_reload"]
-    state["update_and_reload"] = False
     return web.json_response(data)
 
 
@@ -1439,11 +1464,7 @@ async def update_param(request):
 
     stt, prm = await request.json()
     state.update(stt)
-    state.update(setstate)
-    setstate.clear()
     param.update(prm)
-    param.update(setparam)
-    setparam.clear()
     time.sleep(UPDATE_DELAY)
     return web.Response()
 
@@ -1488,8 +1509,10 @@ async def set_frame(request):
     global frame_buffer
     global frame_mtime
     global setframe_mtime
+    global setframe_buffer
     frame_buffer = [frame]
     frame_mtime = time.time()
+    setframe_buffer = [frame]
     setframe_mtime = frame_mtime
     return web.Response()
 
@@ -1803,6 +1826,11 @@ class FlipStreamFileSelect_Checkpoints(FlipStreamFileSelect):
     FOLDER_PATH = Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix()
 
 
+class FlipStreamFileSelect_Loras(FlipStreamFileSelect):
+    FOLDER_NAME = "loras"
+    FOLDER_PATH = Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix()
+
+
 class FlipStreamFileSelect_VAE(FlipStreamFileSelect):
     FOLDER_NAME = "vae"
     FOLDER_PATH = Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix()
@@ -1855,6 +1883,8 @@ class FlipStreamPreviewBox:
     CATEGORY = "FlipStreamViewer"
 
     def run(self, label, tensor, **kwargs):
+        if tensor is None:
+            tensor = torch.zeros((1, 8, 8, 3))
         buf = np.array(tensor[0].cpu().numpy() * 255, dtype=np.uint8)
         image = Image.fromarray(buf)
         image.thumbnail((256, 256))
@@ -1904,7 +1934,7 @@ class FlipStreamSetUpdateAndReload:
 
     def run(self, delay_sec, hook=None):
         time.sleep(delay_sec)
-        setstate["update_and_reload"] = True
+        refresh_data["update_and_reload"] = True
         return (hook,)
 
 
@@ -1927,8 +1957,8 @@ class FlipStreamSetMessage:
     CATEGORY = "FlipStreamViewer"
 
     def run(self, message, fontsize, hook=None):
-        setstate["message"] = btoa_utf8(message)
-        setstate["message_fontsize"] = f"{fontsize}rem"
+        refresh_data["message"] = btoa_utf8(message)
+        refresh_data["message_fontsize"] = f"{fontsize}rem"
         return (hook,)
 
 
@@ -1958,7 +1988,7 @@ class FlipStreamSetParam:
             value = btoa_utf8(value)
             empty = btoa_utf8(empty)
         if replace or label not in param or param[label] == empty:
-            setparam[label] = value
+            refresh_param[label] = value
         return (hook,)
 
 
@@ -2089,6 +2119,7 @@ class FlipStreamGetFrame:
                 "index": ("INT", {"default": 0, "min": 0}),
                 "frames": ("INT", {"default": 1, "min": 1}),
                 "capture_only": ("BOOLEAN", {"default": True}),
+                "enable": ("BOOLEAN", {"default": True}),
             }
         }
 
@@ -2104,15 +2135,20 @@ class FlipStreamGetFrame:
         else:
             return frame_mtime
     
-    def run(self, index, frames, **kwargs):
+    def run(self, index, frames, capture_only, enable, **kwargs):
+        if not enable:
+            return (None, False)            
+        buf = setframe_buffer if capture_only else frame_buffer
         images_list = [
-            np.array(Image.open(io.BytesIO(frame_buffer[i]))) 
-            for i in range(index, min(index + frames, len(frame_buffer)))
+            np.array(Image.open(io.BytesIO(buf[i]))) 
+            for i in range(index, min(index + frames, len(buf)))
         ]        
         if not images_list:
-            return (torch.zeros((1, 64, 64, 3), dtype=torch.float32), False)
-        image_batch = np.stack(images_list)
-        return (torch.from_numpy(image_batch).float() / 255.0, True)
+            return (None, False)
+        image = torch.from_numpy(np.stack(images_list)).float() / 255.0
+        if image is not None and image.shape[3] == 4:
+            image = image[:,:,:,:3] * image[:,:,:,3:4]
+        return (image, True)
 
 
 class FlipStreamScreenGrabber:
@@ -2763,6 +2799,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamSelectBox_Samplers": FlipStreamSelectBox_Samplers,
     "FlipStreamSelectBox_Scheduler": FlipStreamSelectBox_Scheduler,
     "FlipStreamFileSelect_Checkpoints": FlipStreamFileSelect_Checkpoints,
+    "FlipStreamFileSelect_Loras": FlipStreamFileSelect_Loras,
     "FlipStreamFileSelect_VAE": FlipStreamFileSelect_VAE,
     "FlipStreamFileSelect_ControlNetModel": FlipStreamFileSelect_ControlNetModel,
     "FlipStreamFileSelect_TensorRT": FlipStreamFileSelect_TensorRT,
@@ -2804,6 +2841,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamSelectBox_Samplers": "FlipStreamSelectBox_Samplers",
     "FlipStreamSelectBox_Scheduler": "FlipStreamSelectBox_Scheduler",
     "FlipStreamFileSelect_Checkpoints": "FlipStreamFileSelect_Checkpoints",
+    "FlipStreamFileSelect_Loras": "FlipStreamFileSelect_Loras",
     "FlipStreamFileSelect_VAE": "FlipStreamFileSelect_VAE",
     "FlipStreamFileSelect_ControlNetModel": "FlipStreamFileSelect_ControlNetModel",
     "FlipStreamFileSelect_TensorRT": "FlipStreamFileSelect_TensorRT",
