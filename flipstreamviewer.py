@@ -2,6 +2,7 @@ import base64
 import hashlib
 import html
 import io
+import itertools
 import json
 import threading
 import time
@@ -145,6 +146,11 @@ div.row {
     position: relative;
 }
 
+div#presetXorkeyInputDiv {
+    display: none;
+    position: relative;
+}
+
 .FlipStreamSlider {
     width: 50%;
 }
@@ -228,6 +234,10 @@ div.row {
 
 #movePresetSelect,
 #moveLoraSelect {
+    display: none;
+}
+
+#presetXorkey {
     display: none;
 }
 
@@ -404,9 +414,10 @@ setupPreviewRoi();
 
 SCRIPT_PRESET=r"""
 function loadPreset(loraPromptOnly=false, force_state={}, search="") {
+    const xorkey = document.getElementById("presetXorkeyInput").value;
     fetch("/flipstreamviewer/load_preset", {
         method: "POST",
-        body: JSON.stringify([getStateAsJson(force_state), loraPromptOnly]),
+        body: JSON.stringify([getStateAsJson(force_state), loraPromptOnly, xorkey]),
         headers: {"Content-Type": "application/json"}
     }).then(response => response.json()).then(json => {
         if (loraPromptOnly) {
@@ -449,6 +460,7 @@ function movePresetFile() {
 
 function savePreset() {
     const title = document.getElementById("presetTitleInput").value;
+    const xorkey = document.getElementById("presetXorkeyInput").value;
     if (title == "") {
         alert("Please enter a title to save.");
         return;
@@ -459,7 +471,7 @@ function savePreset() {
     }
     fetch("/flipstreamviewer/save_preset", {
         method: "POST",
-        body: JSON.stringify([getStateAsJson(), getParamAsJson()]),
+        body: JSON.stringify([getStateAsJson(), getParamAsJson(), xorkey]),
         headers: {"Content-Type": "application/json"}
     }).then(response => {
         if (response.ok) {
@@ -967,6 +979,9 @@ function reloadPage(search="") {
 
 function parseQueryParam() {
     const p = new URLSearchParams(location.search)
+    if (p.has("px")) {
+        document.getElementById("presetXorkeyInputDiv").style.display = "block";
+    }
     if (p.has("darker")) {
         onInputDarker(p.get("darker"));
     }
@@ -1251,7 +1266,7 @@ async def viewer(request):
             </div>
           </details>
           <details>
-            <summary><i>Preset</i></summary>           
+            <summary><i>Preset</i></summary>
             <select id="presetFolderSelect" class="willreload" onchange="updateParam(true)">
                 <option value="" selected>preset folder</option>
                 {"".join([f'<option value="{dir.name}"{" selected" if state["presetFolder"] == dir.name else ""}>{dir.name}</option>' for dir in Path("preset").glob("*/")])}
@@ -1270,6 +1285,9 @@ async def viewer(request):
             <div class="row">
                 <input id="presetTitleInput" placeholder="preset title" value="{state["presetTitle"]}" />
                 <button onclick="savePreset()">Save</button>
+            </div>
+            <div id="presetXorkeyInputDiv">
+                <input id="presetXorkeyInput" type="password" placeholder="xorkey" />
             </div>
             <div class="row">
                 <button onclick="showPresetDialog()">Choose</button>
@@ -1559,14 +1577,31 @@ async def move_lorafile(request):
     return web.Response()
 
 
+def xor_crypt(data_str, key_str, crypt=True):
+    xorall = lambda data, key: bytes([b1 ^ b2 for b1, b2 in zip(data, itertools.cycle(key))])
+    key_bytes = key_str.encode('utf-8')
+    input_bytes = data_str.encode('utf-8')
+    if crypt:
+        encrypted_bytes = xorall(input_bytes, key_bytes)
+        return base64.b64encode(encrypted_bytes).decode('utf-8')
+    else:
+        decoded_bytes = base64.b64decode(input_bytes)
+        return xorall(decoded_bytes, key_bytes).decode('utf-8')
+
+
 @server.PromptServer.instance.routes.post("/flipstreamviewer/load_preset")
 async def load_preset(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
 
-    stt, loraPromptOnly = await request.json()
-    with open(Path("preset", stt["presetFolder"], stt["presetFile"]), "r") as file:
-        buf = json.load(file)
+    stt, loraPromptOnly, xorkey = await request.json()
+    filename = stt["presetFile"]
+    path = Path("preset", stt["presetFolder"], filename)
+    with open(path, "r") as file:
+        if xorkey:
+            buf = json.loads(xor_crypt(file.read(), xorkey + filename, False))
+        else:
+            buf = json.load(file)
         if loraPromptOnly:
             buf = {"lora": buf.get("lora", "")}
 
@@ -1584,12 +1619,18 @@ async def save_preset(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
 
-    stt, prm = await request.json()
+    stt, prm, xorkey = await request.json()
     state.update(stt)
     param.update(prm)
     time.sleep(UPDATE_DELAY)
-    with open(Path("preset", state["presetFolder"], state["presetTitle"] + ".json"), "w") as file:
-        json.dump(param, file)
+
+    filename = state["presetTitle"] + ".json"
+    path = Path("preset", state["presetFolder"], filename)
+    with open(path, "w") as file:
+        if xorkey:
+            file.write(xor_crypt(json.dumps(param), xorkey + filename))
+        else:
+            json.dump(param, file)
     return web.Response()
 
 
