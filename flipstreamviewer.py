@@ -1168,7 +1168,7 @@ async def viewer(request):
             files = sorted(Path(folder_path, mode, state[f"{label}Folder"]).glob("*.*"))
             files = [Path(file).relative_to(folder_path) for file in files]
         else:
-            files = [Path(file) for file in FlipStreamFileSelect.get_filelist(folder_name, Path(folder_path, mode))]
+            files = [Path(file) for file in FlipStreamFileSelect.get_filelist(folder_name, folder_path, mode)]
         
         png_files = [file for file in files if file.suffix.lower() == '.png']
         other_files = [file for file in files if file.suffix.lower() != '.png']
@@ -1810,7 +1810,7 @@ class FlipStreamFileSelect:
     FOLDER_PATH = ""
 
     @staticmethod
-    def get_filelist(folder_name, folder_path):
+    def get_filelist(folder_name, folder_path, mode):
         if folder_name == "checkpoints":
             return CheckpointLoaderSimple.INPUT_TYPES()["required"]["ckpt_name"][0]
         elif folder_name == "vae":
@@ -1828,14 +1828,14 @@ class FlipStreamFileSelect:
                 return [folder_path]
             return folder_paths.get_filename_list(folder_name)
         else:
-            return [str(p.relative_to(folder_path)) for p in Path(folder_path).glob("*.*")]
+            return [str(p.relative_to(folder_path)) for p in Path(folder_path, mode).glob("*.*")]
 
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
                 "label": ("STRING", {"default": "empty"}),
-                "default": ([""] + s.get_filelist(s.FOLDER_NAME, s.FOLDER_PATH),),
+                "default": ([""] + s.get_filelist(s.FOLDER_NAME, s.FOLDER_PATH, ""),),
                 "folder_name": ([s.FOLDER_NAME],),
                 "folder_path": ([s.FOLDER_PATH],),
                 "mode": ("STRING", {"default": ""}),
@@ -2556,7 +2556,7 @@ class FlipStreamChat:
         return {
             "required": {
                 "model_file": ([path.name for path in Path(folder_paths.models_dir, "LLM").glob("*.gguf")],),
-                "n_ctx": ("INT", {"default": 2048}),
+                "n_ctx": ("INT", {"default": 2048, "min": 0, "max": 8192}),
                 "n_gpu_layers": ("INT", {"default": -1, "min": -1}),
                 "unload_other_models": ("BOOLEAN", {"default": False}),
                 "close_after_use": ("BOOLEAN", {"default": False}),
@@ -2568,7 +2568,7 @@ class FlipStreamChat:
                 "temperature": ("FLOAT", {"default": 0.2, "min": 0}),
                 "top_p": ("FLOAT", {"default": 0.95, "min": 0}),
                 "seed": ("INT", {"default": -1}),
-                "max_tokens": ("INT", {"default": 128, "min": 0}),
+                "max_tokens": ("INT", {"default": 1024, "min": 0, "max": 8192}),
                 "presence_penalty": ("FLOAT", {"default": 0, "min": 0}),
                 "frequency_penalty": ("FLOAT", {"default": 0.5, "min": 0}),
                 "repeat_penalty": ("FLOAT", {"default": 1.0, "min": 0}),
@@ -2793,6 +2793,7 @@ class FlipStreamViewer:
                 "fps": ("INT", {"default": 16, "min": 1, "max": 30}),
                 "loramode": ("STRING", {"default": ""}),
                 "reset_updating": ("BOOLEAN", {"default": True}),
+                "pingpong": ("BOOLEAN", {"default": True}),
             },
         }
 
@@ -2809,10 +2810,10 @@ class FlipStreamViewer:
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, tensor, fps, reset_updating, **kwargs):
+    def run(self, tensor, fps, reset_updating, pingpong, **kwargs):
         fb = []
         buf = (tensor.detach().cpu().numpy() * 255).astype(np.uint8)
-        if tensor.shape[0] != 1:
+        if tensor.shape[0] != 1 and pingpong:
             buf = np.concatenate([buf, np.flip(buf, axis=0)])
         for image in buf:
             with io.BytesIO() as output:
