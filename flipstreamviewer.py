@@ -67,7 +67,7 @@ refresh_data = {}
 refresh_param = {}
 default_param = {"lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
 param = default_param.copy()
-state = {"presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0}
+state = {"presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "lastElapsed": 0}
 frame_updating = None
 frame_buffer = []
 frame_mtime = 0
@@ -318,7 +318,8 @@ function getStateAsJson(force_state={}) {
     const loraLinkHref = document.getElementById("loraLink").getAttribute("href");
     const loraPreviewSrc = document.getElementById("loraPreview").getAttribute("src");
     const darker = parseFloat(document.getElementById("darkerRange").value);
-    var res = { presetTitle: presetTitle, presetFolder: presetFolder, presetFile: presetFile, loraRate: loraRate, loraRank: loraRank, loraFolder: loraFolder, loraFile: loraFile, loraTagOptions: loraTagOptions, loraTag: loraTag, loraLinkHref: loraLinkHref, loraPreviewSrc: loraPreviewSrc, loraTagOptions: loraTagOptions, darker: darker };
+    const lastElapsed = document.getElementById("statusLastElapsed").value;
+    var res = { presetTitle: presetTitle, presetFolder: presetFolder, presetFile: presetFile, loraRate: loraRate, loraRank: loraRank, loraFolder: loraFolder, loraFile: loraFile, loraTagOptions: loraTagOptions, loraTag: loraTag, loraLinkHref: loraLinkHref, loraPreviewSrc: loraPreviewSrc, loraTagOptions: loraTagOptions, darker: darker, lastElapsed: lastElapsed };
     document.querySelectorAll('.FlipStreamFolderSelect').forEach(x => res[x.name] = x.value);
     res = Object.assign(res, force_state);
     return res;
@@ -843,6 +844,10 @@ var updateStreamInterval = setInterval(updateStreamView, 1000 / streamInfo.fps);
 async function refreshView() {
     const data = await fetch("/flipstreamviewer/refresh_view")
         .then(r => r.json()).catch(e => ({ status: "Fails to refresh view: " + e }));
+    if (data.status_elapsed == 0 && document.getElementById("statusElapsed").value != 0) {
+        document.getElementById("statusLastElapsed").value = document.getElementById("statusElapsed").value;
+    }
+    document.getElementById("statusElapsed").value = data.status_elapsed || 0;
     document.getElementById("statusInfo").textContent = data.status_info || "Empty";
     document.getElementById("messageBox").innerText = atob_utf8(data.message) || "";
     document.getElementById("messageBox").style.fontSize = data.message_fontsize || "1rem";
@@ -1257,6 +1262,8 @@ async def viewer(request):
             <div id="messageBox"></div>
         </div>
         <div id="rightPanel">
+            <progress id="statusLastElapsed" max="60" value="{state["lastElapsed"]}" style="width: 100%;"></progress>
+            <progress id="statusElapsed" max="60" value="0" style="width: 100%;"></progress>
           <details>
             <summary><i>Status</i></summary>
             <textarea id="statusInfo" style="color: lightslategray;" rows="5"></textarea>
@@ -1455,9 +1462,12 @@ async def get_status(request):
     # Get status info from history
     remain = server.PromptServer.instance.prompt_queue.get_tasks_remaining()
     hist = server.PromptServer.instance.prompt_queue.get_history(max_items=1)
+    status_elapsed = 0
     status_info = []
     if frame_updating:
-        status_info.append(f"updating {int(time.time() - frame_updating)}s")
+        status_elapsed = int(time.time() - frame_updating)
+        status_info.append(f"updating {status_elapsed}s")
+
     status_info.append(f"q{remain}")
     info = next(iter(hist.values()))["status"] if hist else None
     if info:
@@ -1469,6 +1479,7 @@ async def get_status(request):
     data["param"] = refresh_param.copy()
     param.update(refresh_param)
     refresh_param.clear()
+    data["status_elapsed"] = status_elapsed
     data["status_info"] = status_info
     data["preview_mtime"] = {key: state[key][0] for key in state if key.endswith("PreviewBox")}
     data["log"] = {key: state[key] for key in state if key.endswith("LogBox")}
@@ -1811,7 +1822,7 @@ class FlipStreamFileSelect:
 
     @staticmethod
     def get_filelist(folder_name, folder_path, mode):
-        if folder_name == "checkpoints":
+        if folder_name == "checkpoints" and not mode:
             return CheckpointLoaderSimple.INPUT_TYPES()["required"]["ckpt_name"][0]
         elif folder_name == "vae":
             return VAELoader.INPUT_TYPES()["required"]["vae_name"][0]
@@ -1875,6 +1886,11 @@ class FlipStreamFileSelect_Loras(FlipStreamFileSelect):
 class FlipStreamFileSelect_VAE(FlipStreamFileSelect):
     FOLDER_NAME = "vae"
     FOLDER_PATH = Path(folder_paths.get_folder_paths(FOLDER_NAME)[0]).relative_to(Path.cwd()).as_posix()
+
+
+class FlipStreamFileSelect_LLM(FlipStreamFileSelect):
+    FOLDER_NAME = "LLM"
+    FOLDER_PATH = Path(folder_paths.models_dir, FOLDER_NAME).relative_to(Path.cwd()).as_posix()
 
 
 class FlipStreamFileSelect_ControlNetModel(FlipStreamFileSelect):
@@ -2294,9 +2310,9 @@ class FlipStreamSource:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "width": ("INT", {"default": 512, "min": 256, "max": 2048, "step": 32}),
-                "height": ("INT", {"default": 512, "min": 256, "max": 2048, "step": 32}),
-                "frames": ("INT", {"default": 8, "min": 1}),
+                "width": ("INT", {"default": 0, "min": 0, "max": 2048, "step": 32}),
+                "height": ("INT", {"default": 0, "min": 0, "max": 2048, "step": 32}),
+                "frames": ("INT", {"default": 0, "min": 0}),
             },
             "optional": {
                 "image": ("IMAGE",),
@@ -2312,9 +2328,19 @@ class FlipStreamSource:
     def run(self, width, height, frames, image=None, vae=None):
         latent = None
         if image is not None and not torch.any(image):
-            image = None            
-        if image is not None and image.shape[3] == 4:
-            image = image[:,:,:,:3] * image[:,:,:,3:4]
+            image = None
+        if image is not None:
+            if image.shape[3] == 4:
+                image = image[:,:,:,:3] * image[:,:,:,3:4]
+            if height and not width:
+                width = int(image.shape[2] * height / image.shape[1] // 32 * 32)
+            if width and not height:
+                height = int(image.shape[1] * width / image.shape[2] // 32 * 32)
+            if not width and not height:
+                width = image.shape[2]
+                height = image.shape[1]
+            if not frames:
+                frames = image.shape[0]
         if image is not None and image.shape[0] >= frames:
             buf = image[:frames]
             buf = buf.movedim(-1,1)
@@ -2325,6 +2351,12 @@ class FlipStreamSource:
             else:
                 latent = {"samples": torch.zeros([frames, 4, height // 8, width // 8], device=comfy.model_management.intermediate_device())}
         else:
+            if not frames:
+                frames = 1
+            if not width:
+                width = 64
+            if not height:
+                height = 64
             image = torch.zeros([frames, height, width, 3])
             latent = {"samples": torch.zeros([frames, 4, height // 8, width // 8], device=comfy.model_management.intermediate_device())}
         return (image, latent,)
@@ -2843,6 +2875,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamFileSelect_Checkpoints": FlipStreamFileSelect_Checkpoints,
     "FlipStreamFileSelect_Loras": FlipStreamFileSelect_Loras,
     "FlipStreamFileSelect_VAE": FlipStreamFileSelect_VAE,
+    "FlipStreamFileSelect_LLM": FlipStreamFileSelect_LLM,
     "FlipStreamFileSelect_ControlNetModel": FlipStreamFileSelect_ControlNetModel,
     "FlipStreamFileSelect_TensorRT": FlipStreamFileSelect_TensorRT,
     "FlipStreamFileSelect_AnimateDiffModel": FlipStreamFileSelect_AnimateDiffModel,
@@ -2885,6 +2918,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamFileSelect_Checkpoints": "FlipStreamFileSelect_Checkpoints",
     "FlipStreamFileSelect_Loras": "FlipStreamFileSelect_Loras",
     "FlipStreamFileSelect_VAE": "FlipStreamFileSelect_VAE",
+    "FlipStreamFileSelect_LLM": "FlipStreamFileSelect_LLM",
     "FlipStreamFileSelect_ControlNetModel": "FlipStreamFileSelect_ControlNetModel",
     "FlipStreamFileSelect_TensorRT": "FlipStreamFileSelect_TensorRT",
     "FlipStreamFileSelect_AnimateDiffModel": "FlipStreamFileSelect_AnimateDiffModel",
