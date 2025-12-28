@@ -170,8 +170,20 @@ div#presetXorkeyInputDiv {
     display: none;
 }
 
-.FlipStreamPreviewBox {
+.FlipStreamPasteBox {
+    border: 1px dimgray;
     max-width: 100%;
+    min-height: 2em;
+    max-height: 8em;
+    object-fit: scale-down;
+}
+
+.FlipStreamPreviewBox {
+    border: 1px dimgray;
+    max-width: 100%;
+    min-height: 2em;
+    max-height: 8em;
+    object-fit: scale-down;
 }
 
 .FlipStreamPreviewRoi {
@@ -785,6 +797,23 @@ function detailsState() {
 }
 detailsState();
 
+function onPasteBox() {
+    document.querySelectorAll('.FlipStreamPasteBox').forEach(i => {
+        i.tabIndex = 0;
+        i.onclick = () => i.focus();
+        i.onpaste = e => {
+            const f = e.clipboardData.files[0];
+            if (f?.type[0] == 'i') fetch(`/flipstreamviewer/paste_upload?label=${i.name}`, {method:'POST', body:f});
+        };
+        i.onkeydown = e => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                fetch(`/flipstreamviewer/paste_remove?label=${i.name}`, {method:'POST'});
+            }
+        };
+    });
+}
+onPasteBox();
+
 function toggleView() {
     const leftPanel = document.getElementById("leftPanel");
     const rightPanel = document.getElementById("rightPanel");
@@ -819,6 +848,7 @@ function hideView() {
     messageBox.style.visibility = "hidden";
     document.getElementById("loraPreview").src = "";
     document.querySelectorAll('.FlipStreamPreviewBox').forEach(x => x.src = "");
+    document.querySelectorAll('.FlipStreamPasteBox').forEach(x => x.src = "");
     leftPanel.style.visibility = "hidden";
     centerPanel.style.visibility = "hidden";
     rightPanel.style.visibility = "hidden";
@@ -874,6 +904,11 @@ async function refreshView() {
         document.querySelectorAll('.FlipStreamPreviewBox').forEach(async x => {
             if (x.src != "") {
                 x.src = `/flipstreamviewer/preview?label=${x.name}&mtime=${data.preview_mtime[x.id] || 0}`;
+            }
+        });
+        document.querySelectorAll('.FlipStreamPasteBox').forEach(async x => {
+            if (x.src != "") {
+                x.src = `/flipstreamviewer/paste?label=${x.name}&mtime=${data.paste_mtime[x.id] || 0}`;
             }
         });
 
@@ -1044,7 +1079,7 @@ async def preview(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
 
-    label = request.rel_url.query.get('label', '')
+    label = request.query.get('label', '')
     key = label + "PreviewBox"
     if key in state:
         data = state[key][1]
@@ -1058,6 +1093,38 @@ async def preview_setroi(request):
     if request.remote not in allowed_ips: raise HTTPForbidden()
     data = await request.json()
     param[data['label'] + "PreviewRoi"] = data
+    return web.Response()
+
+
+@server.PromptServer.instance.routes.get("/flipstreamviewer/paste")
+async def paste(request):
+    if request.remote not in allowed_ips:
+        raise HTTPForbidden()
+
+    label = request.query.get('label', '')
+    key = label + "PasteBox"
+    if key in state:
+        data = state[key][1]
+    else:
+        data = b""
+    return web.Response(body=data, headers={"Content-Type": "image/png"})
+
+
+@server.PromptServer.instance.routes.post("/flipstreamviewer/paste_upload")
+async def paste_upload(request):
+    if request.remote not in allowed_ips: raise HTTPForbidden()
+    label = request.query.get('label', '')
+    state[label + "PasteBox"] = (time.time(), await request.read())
+    return web.Response()
+
+
+@server.PromptServer.instance.routes.post("/flipstreamviewer/paste_remove")
+async def paste_upload(request):
+    if request.remote not in allowed_ips: raise HTTPForbidden()
+    label = request.query.get('label', '')
+    key = label + "PasteBox"
+    if key in state:
+        del state[key]
     return web.Response()
 
 
@@ -1078,12 +1145,12 @@ async def viewer(request):
     def add_button(title, capture, update, hook):
         block[f"{title}"] = f"""
             <div class="row">"""
-        if capture:
-            block[f"{title}"] += f"""
-                <button onclick="capture()">Capture</button>"""
         if update:
             block[f"{title}"] += f"""
                 <button class="willreload" onclick="updateParam(true)">Update</button>"""
+        if capture:
+            block[f"{title}"] += f"""
+                <button onclick="capture()">Capture</button>"""
         block[f"{title}"] += f"""
             </div>"""
 
@@ -1217,6 +1284,14 @@ async def viewer(request):
                 <canvas class="FlipStreamPreviewRoi" id="{label}PreviewRoi"></canvas>
             </div>"""
     
+    def add_pastebox(title, label):
+        if not label.isidentifier():
+            raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
+        block[f"{title}_{label}"] = f"""
+            <div class="row" style="color: lightslategray;">
+                <img class="FlipStreamPasteBox" id="{label}PasteBox" name="{label}" src="/flipstreamviewer/paste?label={label}" alt="{label}" />
+            </div>"""
+
     def add_logbox(title, label, log, rows):
         if not label.isidentifier():
             raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
@@ -1247,6 +1322,8 @@ async def viewer(request):
                 add_fileselect(title, **inputs)
             if class_type == "FlipStreamPreviewBox":
                 add_previewbox(title, **inputs)
+            if class_type == "FlipStreamPasteBox":
+                add_pastebox(title, **inputs)
             if class_type == "FlipStreamLogBox":
                 add_logbox(title, **inputs)
 
@@ -1482,6 +1559,7 @@ async def get_status(request):
     data["status_elapsed"] = status_elapsed
     data["status_info"] = status_info
     data["preview_mtime"] = {key: state[key][0] for key in state if key.endswith("PreviewBox")}
+    data["paste_mtime"] = {key: state[key][0] for key in state if key.endswith("PasteBox")}
     data["log"] = {key: state[key] for key in state if key.endswith("LogBox")}
     return web.json_response(data)
 
@@ -1950,6 +2028,41 @@ class FlipStreamPreviewBox:
             state[label + "PreviewBox"] = (time.time(), output.getvalue())
         return ()
 
+
+class FlipStreamPasteBox:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "label": ("STRING", {"default": "empty"}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "BOOLEAN")
+    RETURN_NAMES = ("image", "enable")
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    @classmethod
+    def IS_CHANGED(cls, label):
+        return state.get(label + "PasteBox", [0])[0]
+    
+    def run(self, label, **kwargs):
+        key = label + "PasteBox"
+        if key not in state:
+            return (None, False)
+
+        global frame_updating
+        frame_updating = time.time()
+
+        img = Image.open(io.BytesIO(state[key][1]))
+        image = torch.from_numpy(np.array(img)).float()[None, :] / 255.0
+
+        if image.shape[3] == 4:
+            image = image[:,:,:,:3] * image[:,:,:,3:4]
+
+        return (image, True)
+    
 
 class FlipStreamLogBox:
     @classmethod
@@ -2882,6 +2995,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamFileSelect_Input": FlipStreamFileSelect_Input,
     "FlipStreamFileSelect_Output": FlipStreamFileSelect_Output,
     "FlipStreamPreviewBox": FlipStreamPreviewBox,
+    "FlipStreamPasteBox": FlipStreamPasteBox,
     "FlipStreamLogBox": FlipStreamLogBox,
     "FlipStreamSetUpdateAndReload": FlipStreamSetUpdateAndReload,
     "FlipStreamSetMessage": FlipStreamSetMessage,
@@ -2925,6 +3039,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamFileSelect_Input": "FlipStreamFileSelect_Input",
     "FlipStreamFileSelect_Output": "FlipStreamFileSelect_Output",
     "FlipStreamPreviewBox": "FlipStreamPreviewBox",
+    "FlipStreamPasteBox": "FlipStreamPasteBox",
     "FlipStreamLogBox": "FlipStreamLogBox",
     "FlipStreamSetUpdateAndReload": "FlipStreamSetUpdateAndReload",
     "FlipStreamSetMessage": "FlipStreamSetMessage",
