@@ -88,6 +88,7 @@ python -m pip install llama-cpp-python
 - **FlipStreamFileSelect_Input**: A file selector for ComfyUI input folder.
 - **FlipStreamFileSelect_Output**: A file selector for ComfyUI output folder.
 - **FlipStreamPreviewBox**: A box for previewing the input image. You can select the ROI (Region of Interest) in the preview by dragging the mouse.
+- **FlipStreamPasteBox**: A box for paste an input image. You can select the box by click once, then you can paste image from clipboard by Ctrl+V or delete image by DEL.
 - **FlipStreamLogBox**: A box for displaying logs on the screen.
 
 ## Other Nodes
@@ -155,5 +156,6 @@ python build_sage.py
 - **quick_vid2vid.json**: Quick tuning workflow for vid2vid.
 - **quick_vid2vid_roi.json**: An example demonstrating the use of FlipStreamGetPreviewRoi and FlipStreamGate.
 - **visualnobel.json**: Visual nobel like UI using FlipStreamChat.
+
 
 
