@@ -101,6 +101,7 @@ python -m pip install llama-cpp-python
 - **FlipStreamGetPreviewRoi**: A node for obtaining the preview ROI (Region of Interest) selection.
 - **FlipStreamImageSize**: A node for getting image size.
 - **FlipStreamTextReplace**: A node for replacing text. It will output the result of `text.replace(find, replace.format(value))`.
+- **FlipStreamTextConcat**: A node for concatenate text.
 - **FlipStreamScreenGrabber**: A node for grab multiframe screenshots.
 - **FlipStreamSource**: A node for prepare image or latent source.
 - **FlipStreamSwitchImage**: A node for switching images.
@@ -156,6 +157,7 @@ python build_sage.py
 - **quick_vid2vid.json**: Quick tuning workflow for vid2vid.
 - **quick_vid2vid_roi.json**: An example demonstrating the use of FlipStreamGetPreviewRoi and FlipStreamGate.
 - **visualnobel.json**: Visual nobel like UI using FlipStreamChat.
+
 
 
 
