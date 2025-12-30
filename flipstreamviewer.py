@@ -79,7 +79,7 @@ class AnyType(str):
     def __ne__(self, __value: object) -> bool:
         return False
 
-any = AnyType("*")
+anytype = AnyType("*")
 
 
 HEAD=r"""
@@ -173,16 +173,16 @@ div#presetXorkeyInputDiv {
 .FlipStreamPasteBox {
     border: 1px dimgray;
     max-width: 100%;
-    min-height: 2em;
-    max-height: 8em;
+    min-height: 32px;
+    max-height: 160px;
     object-fit: scale-down;
 }
 
 .FlipStreamPreviewBox {
     border: 1px dimgray;
     max-width: 100%;
-    min-height: 2em;
-    max-height: 8em;
+    min-height: 32px;
+    max-height: 160px;
     object-fit: scale-down;
 }
 
@@ -901,6 +901,7 @@ async function refreshView() {
         }
     });
     if (streamViewFlag) {
+        darker = document.getElementById("darkerRange").value;
         document.querySelectorAll('.FlipStreamPreviewBox').forEach(async x => {
             if (x.src != "") {
                 x.src = `/flipstreamviewer/preview?label=${x.name}&mtime=${data.preview_mtime[x.id] || 0}`;
@@ -997,7 +998,6 @@ async function setFrame() {
 
 SCRIPT_QUERY=r"""
 function onInputDarker(value=-1) {
-    const container = document.getElementById('mainDialog');
     value = parseFloat(value);
     if (value < 0) {
         value = document.getElementById("darkerRange").value;
@@ -1005,7 +1005,14 @@ function onInputDarker(value=-1) {
         document.getElementById("darkerRange").value = value;
     }
     document.getElementById("darkerValue").innerText = value; 
-    container.style.backgroundColor = 'rgba(0,0,0,' + value + ')';
+    document.getElementById('mainDialog').style.backgroundColor = 'rgba(0,0,0,' + value + ')';
+    document.getElementById('loraPreview').style.filter = `brightness(${1 - value})`;
+    document.querySelectorAll('.FlipStreamPreviewBox').forEach(async x => {
+        x.style.filter = `brightness(${1 - value})`;
+    });
+    document.querySelectorAll('.FlipStreamPasteBox').forEach(async x => {
+        x.style.filter = `brightness(${1 - value})`;
+    });
 }
 onInputDarker();
 
@@ -1079,7 +1086,10 @@ async def preview(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
 
-    label = request.query.get('label', '')
+    label = request.query.get('label')
+    if not label:
+        return web.Response(status=400, text="Label required")
+
     key = label + "PreviewBox"
     if key in state:
         data = state[key][1]
@@ -1090,7 +1100,9 @@ async def preview(request):
 
 @server.PromptServer.instance.routes.post("/flipstreamviewer/preview_setroi")
 async def preview_setroi(request):
-    if request.remote not in allowed_ips: raise HTTPForbidden()
+    if request.remote not in allowed_ips:
+        raise HTTPForbidden()
+    
     data = await request.json()
     param[data['label'] + "PreviewRoi"] = data
     return web.Response()
@@ -1101,7 +1113,10 @@ async def paste(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
 
-    label = request.query.get('label', '')
+    label = request.query.get('label')
+    if not label:
+        return web.Response(status=400, text="Label required")
+
     key = label + "PasteBox"
     if key in state:
         data = state[key][1]
@@ -1112,16 +1127,31 @@ async def paste(request):
 
 @server.PromptServer.instance.routes.post("/flipstreamviewer/paste_upload")
 async def paste_upload(request):
-    if request.remote not in allowed_ips: raise HTTPForbidden()
-    label = request.query.get('label', '')
-    state[label + "PasteBox"] = (time.time(), await request.read())
+    if request.remote not in allowed_ips:
+        raise HTTPForbidden()
+
+    label = request.query.get('label')
+    if not label:
+        return web.Response(status=400, text="Label required")
+
+    data = await request.read()
+    with Image.open(io.BytesIO(data)) as img:
+        if any(s < 64 for s in img.size):
+            return web.Response(status=400, text="Image too small")
+
+    state[label + "PasteBox"] = (time.time(), data)
     return web.Response()
 
 
 @server.PromptServer.instance.routes.post("/flipstreamviewer/paste_remove")
 async def paste_upload(request):
-    if request.remote not in allowed_ips: raise HTTPForbidden()
-    label = request.query.get('label', '')
+    if request.remote not in allowed_ips:
+        raise HTTPForbidden()
+    
+    label = request.query.get('label')
+    if not label:
+        return web.Response(status=400, text="Label required")
+
     key = label + "PasteBox"
     if key in state:
         del state[key]
@@ -1136,13 +1166,13 @@ async def viewer(request):
 
     block = {}
 
-    def add_section(title, section, hook):
+    def add_section(title, section, **_):
         block[f"{title}_{section}"] = f"""
           </details>
           <details>
             <summary><i>{section}</i></summary>"""
 
-    def add_button(title, capture, update, hook):
+    def add_button(title, capture, update, **_):
         block[f"{title}"] = f"""
             <div class="row">"""
         if update:
@@ -1154,7 +1184,7 @@ async def viewer(request):
         block[f"{title}"] += f"""
             </div>"""
 
-    def add_slider(title, label, default, min, max, step):
+    def add_slider(title, label, default, min, max, step, **_):
         if not label.isidentifier():
             raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
         param.setdefault(label, default)
@@ -1164,14 +1194,14 @@ async def viewer(request):
                 <span id="{label}Value">{float(param[label]):g}</span>{label}
             </div>"""
 
-    def add_textbox(title, label, default, rows):
+    def add_textbox(title, label, default, rows, **_):
         if not label.isidentifier():
             raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
         param.setdefault(label, btoa_utf8(default))
         block[f"{title}_{label}"] = f"""
             <textarea class="FlipStreamTextBox" id="{label}TextBox" style="color: lightslategray;" placeholder="{label}" rows="{rows}" name="{label}">{atob_utf8(param[label])}</textarea>"""
 
-    def add_inputbox(title, label, default, boxtype):
+    def add_inputbox(title, label, default, boxtype, **_):
         if not label.isidentifier():
             raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
         param.setdefault(label, default)
@@ -1194,7 +1224,7 @@ async def viewer(request):
                 <button onclick="updateParam(true)">U</button>
             </div>"""
 
-    def add_selectbox(title, label, default, listitems):
+    def add_selectbox(title, label, listitems, **_):
         listitems = listitems.split(",")
         if not label.isidentifier():
             raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
@@ -1203,7 +1233,7 @@ async def viewer(request):
         param.setdefault(label, "")
         text_html = f"""
             <select class="FlipStreamSelectBox" id="{label}SelectBox" name="{label}">
-                <option value="" disabled selected>{label}</option>"""
+                <option value="">{label}</option>"""
         for item in listitems:
             text_html += f"""
                 <option value="{item}"{" selected" if param[label] == item else ""}>{item}</option>"""
@@ -1211,7 +1241,7 @@ async def viewer(request):
             </select>"""
         block[f"{title}_{label}"] = text_html
 
-    def add_fileselect(title, label, default, folder_name, folder_path, mode, use_sub, use_move):
+    def add_fileselect(title, label, folder_name, folder_path, mode, use_sub, use_move, **_):
         if not label.isidentifier():
             raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
         if not (mode == "" or mode.isidentifier()):
@@ -1232,7 +1262,7 @@ async def viewer(request):
         text_html += f"""
             <div class="row">
                 <select class="FlipStreamFileSelect" id="{label}FileSelect" name="{label}">
-                    <option value="">{label} default</option>"""
+                    <option value="">{label}</option>"""
         if param[label]:
             text_html += f"""
                     <option value="{param[label]}" selected>*{Path(param[label]).stem}</option>"""
@@ -1274,7 +1304,7 @@ async def viewer(request):
             </select>"""
         block[f"{title}_{label}"] = text_html
 
-    def add_previewbox(title, label, tensor):
+    def add_previewbox(title, label, **_):
         if not label.isidentifier():
             raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
         if (label + "PreviewBox") in state:
@@ -1284,7 +1314,7 @@ async def viewer(request):
                 <canvas class="FlipStreamPreviewRoi" id="{label}PreviewRoi"></canvas>
             </div>"""
     
-    def add_pastebox(title, label):
+    def add_pastebox(title, label, **_):
         if not label.isidentifier():
             raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
         block[f"{title}_{label}"] = f"""
@@ -1292,7 +1322,7 @@ async def viewer(request):
                 <img class="FlipStreamPasteBox" id="{label}PasteBox" name="{label}" src="/flipstreamviewer/paste?label={label}" alt="{label}" />
             </div>"""
 
-    def add_logbox(title, label, log, rows):
+    def add_logbox(title, label, rows, **_):
         if not label.isidentifier():
             raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
         if (label + "LogBox") in state:
@@ -1731,16 +1761,16 @@ class FlipStreamSection:
                 "section": ("STRING", {"default": "Section"}),
             },
             "optional": {
-                "hook": (any,),
+                "hook": (anytype,),
             }
         }
 
-    RETURN_TYPES = (any,)
+    RETURN_TYPES = (anytype,)
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, section, hook=None):
-        return (hook,)
+    def run(self, **_):
+        return (True,)
 
 
 class FlipStreamButton:
@@ -1752,16 +1782,16 @@ class FlipStreamButton:
                 "update": ("BOOLEAN", {"default": True}),
             },
             "optional": {
-                "hook": (any,),
+                "hook": (anytype,),
             }
         }
 
-    RETURN_TYPES = (any,)
+    RETURN_TYPES = (anytype,)
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, hook=None, **kwargs):
-        return (hook,)
+    def run(self, **_):
+        return (True,)
 
 
 class FlipStreamSlider:
@@ -1778,15 +1808,16 @@ class FlipStreamSlider:
         }
 
     RETURN_TYPES = ("FLOAT", "INT", "BOOLEAN")
+    RETURN_NAMES = ("float", "int", "enable")
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
     @classmethod
-    def IS_CHANGED(cls, label, default, **kwargs):
+    def IS_CHANGED(cls, label, default, **_):
         param.setdefault(label, default)
-        return hash((param[label],))
+        return hash(param[label])
     
-    def run(self, label, default, **kwargs):
+    def run(self, label, default, **_):
         global frame_updating
         frame_updating = time.time()
         param.setdefault(label, default)
@@ -1804,20 +1835,22 @@ class FlipStreamTextBox:
             }
         }
 
-    RETURN_TYPES = ("STRING",)
+    RETURN_TYPES = ("STRING", "BOOLEAN")
+    RETURN_NAMES = ("text", "enable")
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
     @classmethod
-    def IS_CHANGED(cls, label, default, **kwargs):
+    def IS_CHANGED(cls, label, default, **_):
         param.setdefault(label, btoa_utf8(default))
-        return hash((param[label],))
-    
-    def run(self, label, default, **kwargs):
+        return hash(param[label])
+   
+    def run(self, label, default, **_):
         global frame_updating
         frame_updating = time.time()
         param.setdefault(label, btoa_utf8(default))
-        return (atob_utf8(param[label]),)
+        text = atob_utf8(param[label])
+        return (text, bool(text))
 
 
 class FlipStreamInputBox:
@@ -1832,13 +1865,14 @@ class FlipStreamInputBox:
         }
 
     RETURN_TYPES = ("STRING", "FLOAT", "INT", "BOOLEAN")
+    RETURN_NAMES = ("text", "float", "int", "enable")
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
     @classmethod
-    def IS_CHANGED(cls, label, default, **kwargs):
+    def IS_CHANGED(cls, label, default, **_):
         param.setdefault(label, default)
-        return hash((param[label],))
+        return hash(param[label])
 
     def floator0(self, v):
         try:
@@ -1846,7 +1880,7 @@ class FlipStreamInputBox:
         except:
             return 0
     
-    def run(self, label, default, boxtype, **kwargs):
+    def run(self, label, default, boxtype, **_):
         global frame_updating
         frame_updating = time.time()
         param.setdefault(label, default)
@@ -1868,17 +1902,17 @@ class FlipStreamSelectBox:
             },
         }
 
-    RETURN_TYPES = (any, "BOOLEAN",)
+    RETURN_TYPES = (anytype, "BOOLEAN",)
     RETURN_NAMES = ("item", "enable",)
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
     @classmethod
-    def IS_CHANGED(cls, label, **kwargs):
+    def IS_CHANGED(cls, label, **_):
         param.setdefault(label, "")
-        return hash((param[label],))
+        return hash(param[label])
 
-    def run(self, label, default, **kwargs):
+    def run(self, label, default, **_):
         global frame_updating
         frame_updating = time.time()
         param.setdefault(label, "")
@@ -1933,17 +1967,17 @@ class FlipStreamFileSelect:
             }
         }
 
-    RETURN_TYPES = (any, any, "BOOLEAN",)
+    RETURN_TYPES = (anytype, anytype, "BOOLEAN",)
     RETURN_NAMES = ("file", "path", "enable",)
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
     @classmethod
-    def IS_CHANGED(cls, label, **kwargs):
+    def IS_CHANGED(cls, label, **_):
         param.setdefault(label, "")
-        return hash((param[label],))
+        return hash(param[label])
 
-    def run(self, label, default, folder_path, **kwargs):
+    def run(self, label, default, folder_path, **_):
         global frame_updating
         frame_updating = time.time()
         param.setdefault(label, "")
@@ -2017,7 +2051,7 @@ class FlipStreamPreviewBox:
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, label, tensor, **kwargs):
+    def run(self, label, tensor, **_):
         if tensor is None:
             tensor = torch.zeros((1, 8, 8, 3))
         buf = np.array(tensor[0].cpu().numpy() * 255, dtype=np.uint8)
@@ -2047,7 +2081,7 @@ class FlipStreamPasteBox:
     def IS_CHANGED(cls, label):
         return state.get(label + "PasteBox", [0])[0]
     
-    def run(self, label, **kwargs):
+    def run(self, label, **_):
         key = label + "PasteBox"
         if key not in state:
             return (None, False)
@@ -2080,7 +2114,7 @@ class FlipStreamLogBox:
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, label, log, **kwargs):
+    def run(self, label, log, **_):
         state[label + "LogBox"] = btoa_utf8(log)
         return ()
 
@@ -2093,19 +2127,19 @@ class FlipStreamSetUpdateAndReload:
                 "delay_sec": ("FLOAT", {"default": 1, "min": 0.0, "max": 30.0, "step": 0.1}),
             },
             "optional": {
-                "hook": (any,),
+                "hook": (anytype,),
             }
         }
 
-    RETURN_TYPES = (any,)
+    RETURN_TYPES = (anytype,)
     OUTPUT_NODE = True
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, delay_sec, hook=None):
+    def run(self, delay_sec, **_):
         time.sleep(delay_sec)
         refresh_data["update_and_reload"] = True
-        return (hook,)
+        return (True,)
 
 
 class FlipStreamSetMessage:
@@ -2117,19 +2151,19 @@ class FlipStreamSetMessage:
                 "fontsize": ("FLOAT", {"default": 1.0, "min": 0.5, "max": 2.0, "step": 0.1}),
             },
             "optional": {
-                "hook": (any,),
+                "hook": (anytype,),
             }
         }
 
-    RETURN_TYPES = (any,)
+    RETURN_TYPES = (anytype,)
     OUTPUT_NODE = True
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, message, fontsize, hook=None):
+    def run(self, message, fontsize, **_):
         refresh_data["message"] = btoa_utf8(message)
         refresh_data["message_fontsize"] = f"{fontsize}rem"
-        return (hook,)
+        return (True,)
 
 
 class FlipStreamSetParam:
@@ -2143,23 +2177,23 @@ class FlipStreamSetParam:
                 "b64enc": ("BOOLEAN", {"default": False}),
             },
             "optional": {
-                "hook": (any,),
+                "hook": (anytype,),
             }
         }
 
-    RETURN_TYPES = (any,)
+    RETURN_TYPES = (anytype,)
     OUTPUT_NODE = True
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, label, value, replace, b64enc, hook=None):
+    def run(self, label, value, replace, b64enc, **_):
         empty = ""
         if b64enc:
             value = btoa_utf8(value)
             empty = btoa_utf8(empty)
         if replace or label not in param or param[label] == empty:
             refresh_param[label] = value
-        return (hook,)
+        return (True,)
 
 
 class FlipStreamGetParam:
@@ -2184,7 +2218,7 @@ class FlipStreamGetParam:
             value = param[label]
             if b64dec:
                 value = atob_utf8(value)
-        return hash((value,))
+        return hash(value)
 
     def run(self, label, default, b64dec):
         global frame_updating
@@ -2218,7 +2252,7 @@ class FlipStreamGetPreviewRoi:
     CATEGORY = "FlipStreamViewer"
 
     @classmethod
-    def IS_CHANGED(cls, label, **kwargs):
+    def IS_CHANGED(cls, label, **_):
         roi_data = frozenset(param.get(label + "PreviewRoi", {}).items())
         return hash(roi_data)
 
@@ -2264,7 +2298,7 @@ class FlipStreamTextReplace:
                 "replace": ("STRING", {"default": ""}),
             },
             "optional": {
-                "value": (any,),
+                "value": (anytype,),
             }
         }
 
@@ -2279,6 +2313,27 @@ class FlipStreamTextReplace:
                 continue
             text = text.replace(word, replace.format(value))
         return (text,)
+
+
+class FlipStreamTextConcat:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "joinstr": ("STRING", {"default": "", "multiline": True}),
+                "text": ("STRING",),
+                "text2": ("STRING",),
+                "text3": ("STRING",),
+                "text4": ("STRING",),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, joinstr, text, text2, text3, text4, **_):
+        return (str(joinstr).join(map(str, filter(None, [text, text2, text3, text4]))),)
 
 
 class FlipStreamGetFrame:
@@ -2299,13 +2354,13 @@ class FlipStreamGetFrame:
     CATEGORY = "FlipStreamViewer"
 
     @classmethod
-    def IS_CHANGED(cls, capture_only, **kwargs):
+    def IS_CHANGED(cls, capture_only, **_):
         if capture_only:
             return setframe_mtime
         else:
             return frame_mtime
     
-    def run(self, index, frames, capture_only, enable, **kwargs):
+    def run(self, index, frames, capture_only, enable, **_):
         if not enable:
             return (None, False)            
         buf = setframe_buffer if capture_only else frame_buffer
@@ -2480,15 +2535,15 @@ class FlipStreamSwitch:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "value": (any,),
+                "value": (anytype,),
             },
             "optional": {
-                "value_enable": (any,),
+                "value_enable": (anytype,),
                 "enable": ("BOOLEAN",),
             }
         }
 
-    RETURN_TYPES = (any,)
+    RETURN_TYPES = (anytype,)
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
@@ -2555,18 +2610,18 @@ class FlipStreamGate:
                 "latent": ("LATENT",),
             },
             "optional": {
-                "a": (any,),
-                "b": (any,),
-                "c": (any,),
-                "d": (any,),
-                "e": (any,),
-                "f": (any,),
-                "g": (any,),
-                "h": (any,)
+                "a": (anytype,),
+                "b": (anytype,),
+                "c": (anytype,),
+                "d": (anytype,),
+                "e": (anytype,),
+                "f": (anytype,),
+                "g": (anytype,),
+                "h": (anytype,)
             }
         }
 
-    RETURN_TYPES = ("MODEL", "CONDITIONING", "CONDITIONING", "LATENT", any, any, any, any, any, any, any, any)
+    RETURN_TYPES = ("MODEL", "CONDITIONING", "CONDITIONING", "LATENT", anytype, anytype, anytype, anytype, anytype, anytype, anytype, anytype)
     RETURN_NAMES = ("model", "pos", "neg", "latent", "a", "b", "c", "d", "e", "f", "g", "h")
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
@@ -2943,7 +2998,7 @@ class FlipStreamViewer:
         }
 
     @classmethod
-    def IS_CHANGED(cls, allowip, idle, loramode, **kwargs):
+    def IS_CHANGED(cls, allowip, idle, loramode, **_):
         global allowed_ips
         allowed_ips = ["127.0.0.1"] + list(map(str.strip, allowip.split(",")))
         state["loraMode"] = loramode
@@ -2955,7 +3010,7 @@ class FlipStreamViewer:
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, tensor, fps, reset_updating, pingpong, **kwargs):
+    def run(self, tensor, fps, reset_updating, pingpong, **_):
         fb = []
         buf = (tensor.detach().cpu().numpy() * 255).astype(np.uint8)
         if tensor.shape[0] != 1 and pingpong:
@@ -3005,6 +3060,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamGetPreviewRoi": FlipStreamGetPreviewRoi,
     "FlipStreamImageSize": FlipStreamImageSize,
     "FlipStreamTextReplace": FlipStreamTextReplace,
+    "FlipStreamTextConcat": FlipStreamTextConcat,
     "FlipStreamScreenGrabber": FlipStreamScreenGrabber,
     "FlipStreamVideoInput": FlipStreamVideoInput,
     "FlipStreamSource": FlipStreamSource,
@@ -3049,6 +3105,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamGetPreviewRoi": "FlipStreamGetPreviewRoi",
     "FlipStreamImageSize": "FlipStreamImageSize",
     "FlipStreamTextReplace": "FlipStreamTextReplace",
+    "FlipStreamTextConcat": "FlipStreamTextConcat",
     "FlipStreamScreenGrabber": "FlipStreamScreenGrabber",
     "FlipStreamVideoInput": "FlipStreamVideoInput",
     "FlipStreamSource": "FlipStreamSource",
