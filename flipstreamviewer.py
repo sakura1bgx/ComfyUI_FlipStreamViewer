@@ -6,6 +6,8 @@ import itertools
 import json
 import threading
 import time
+import subprocess
+import re
 from pathlib import Path
 
 import imageio.v3 as iio
@@ -56,19 +58,21 @@ def btoa_utf8(value):
     return base64.b64encode(value.encode("utf-8")).decode()
 
 def atob_utf8(value):
-    if not value:
+    if value is None:
+        return None
+    if value == "":
         return ""
     return base64.b64decode(value.encode()).decode("utf-8")
 
 STREAM_COMPRESSION = 1
 UPDATE_DELAY = 1.0
 allowed_ips = ["127.0.0.1"]
+refresh_updating = 0
 refresh_data = {}
 refresh_param = {}
 default_param = {"lora": "", "_capture_offsetX": 0, "_capture_offsetY": 0, "_capture_scale": 100}
 param = default_param.copy()
 state = {"presetTitle": time.strftime("%Y%m%d-%H%M"), "presetFolder": "", "presetFile": "", "loraRate": "1", "loraRank": "0", "loraMode": "", "loraFolder": "", "loraFile": "", "loraTagOptions": "[]", "loraTag": "", "loraLinkHref": "", "loraPreviewSrc": "", "darker": 0.0, "lastElapsed": 0}
-frame_updating = None
 frame_buffer = []
 frame_mtime = 0
 frame_fps = 16
@@ -161,6 +165,7 @@ div#presetXorkeyInputDiv {
 
 .FlipStreamSelectBox,
 .FlipStreamFolderSelect,
+.FlipStreamSizeSelect,
 .FlipStreamFileSelect,
 .FlipStreamMoveFileSelect {
     width: 100%;
@@ -239,6 +244,7 @@ div#presetXorkeyInputDiv {
 
 #presetFolderSelect,
 #movePresetSelect,
+#loraModeSelect,
 #loraFolderSelect,
 #moveLoraSelect {
     width: 100%;
@@ -286,7 +292,7 @@ div#presetXorkeyInputDiv {
 
 #loraLink img {
     max-width: 100%;
-    max-height: 8em;
+    max-height: 160px;
     width: auto;
     height: auto;
     margin: auto;
@@ -320,6 +326,7 @@ function getStateAsJson(force_state={}) {
     const presetTitle = document.getElementById("presetTitleInput").value;
     const presetFolder = document.getElementById("presetFolderSelect").value;
     const presetFile = document.getElementById("presetFileSelect").value;
+    const loraMode = document.getElementById("loraModeSelect").value;
     const loraFolder = document.getElementById("loraFolderSelect").value;
     const loraFile = document.getElementById("loraFileSelect").value;
     const loraTagSelect = document.getElementById("loraTagSelect");
@@ -331,7 +338,7 @@ function getStateAsJson(force_state={}) {
     const loraPreviewSrc = document.getElementById("loraPreview").getAttribute("src");
     const darker = parseFloat(document.getElementById("darkerRange").value);
     const lastElapsed = document.getElementById("statusLastElapsed").value;
-    var res = { presetTitle: presetTitle, presetFolder: presetFolder, presetFile: presetFile, loraRate: loraRate, loraRank: loraRank, loraFolder: loraFolder, loraFile: loraFile, loraTagOptions: loraTagOptions, loraTag: loraTag, loraLinkHref: loraLinkHref, loraPreviewSrc: loraPreviewSrc, loraTagOptions: loraTagOptions, darker: darker, lastElapsed: lastElapsed };
+    var res = { presetTitle: presetTitle, presetFolder: presetFolder, presetFile: presetFile, loraRate: loraRate, loraRank: loraRank, loraMode: loraMode, loraFolder: loraFolder, loraFile: loraFile, loraTagOptions: loraTagOptions, loraTag: loraTag, loraLinkHref: loraLinkHref, loraPreviewSrc: loraPreviewSrc, loraTagOptions: loraTagOptions, darker: darker, lastElapsed: lastElapsed };
     document.querySelectorAll('.FlipStreamFolderSelect').forEach(x => res[x.name] = x.value);
     res = Object.assign(res, force_state);
     return res;
@@ -348,6 +355,7 @@ function getParamAsJson(force_param={}) {
     document.querySelectorAll('.FlipStreamTextBox').forEach(x => res[x.name] = btoa_utf8(x.value));
     document.querySelectorAll('.FlipStreamInputBox').forEach(x => res[x.name] = x.value);
     document.querySelectorAll('.FlipStreamSelectBox').forEach(x => res[x.name] = x.value);
+    document.querySelectorAll('.FlipStreamSizeSelect').forEach(x => res[x.name] = x.value);
     document.querySelectorAll('.FlipStreamFileSelect').forEach(x => res[x.name] = x.value);
     res = Object.assign(res, force_param);
     return res;
@@ -364,13 +372,16 @@ function setParam(param) {
     }
 }
 
-function updateParam(reload=false, force_state={}, force_param={}, search="") {
+function updateParam(reload=false, run_once=false, force_state={}, force_param={}, search="") {
     fetch("/flipstreamviewer/update_param", {
         method: "POST",
         body: JSON.stringify([getStateAsJson(force_state), getParamAsJson(force_param)]),
         headers: {"Content-Type": "application/json"}         
     }).then(response => {
         if (response.ok) {
+            if (run_once) {
+                fetch('/flipstreamviewer/run_once');
+            }
             if (reload) {
                 reloadPage(search);
             }
@@ -438,6 +449,7 @@ function loadPreset(loraPromptOnly=false, force_state={}, search="") {
             document.getElementById("presetTitleInput").value = json.presetTitle;
         }
         else {
+            fetch('/flipstreamviewer/run_once');
             reloadPage(search);
         }
     }).catch(error => {
@@ -539,80 +551,63 @@ function moveFile(folder_path, mode, label) {
 
 SCRIPT_LORA=r"""
 function selectLoraFile() {
-    const loraFolder = document.getElementById("loraFolderSelect").value;
     const loraFileSelect = document.getElementById("loraFileSelect");
-    const loraName = loraFileSelect.options[loraFileSelect.selectedIndex].text;
     const loraFile = loraFileSelect.value;
-    const loraRate = document.getElementById("loraRate").value;
-    const loraTagSelect = document.getElementById("loraTagSelect");
-    const loraInput = document.getElementById("loraInput");
-    const loraLink = document.getElementById("loraLink");
-    const loraPreview = document.getElementById("loraPreview");
+    const loraFolder = document.getElementById("loraFolderSelect").value;
     
-    if (loraFile) {
-        const re = new RegExp("[\\n]?<lora:" + loraName + ":[-]?[0-9.]+>", "g");
-        if (loraInput.value.search(re) == -1) {
-            if (loraInput.value.trim() != "") {
-                loraInput.value += "\n";
-            }
-            loraInput.value += "<lora:" + loraName + ":" + loraRate + ">";
-        }
-    }
-    
+    if (loraFile) toggleLora();
+
     fetch("/flipstreamviewer/get_lorainfo", {
         method: "POST",
         body: JSON.stringify({loraFolder: loraFolder, loraFile: loraFile}),
         headers: {"Content-Type": "application/json"}
     }).then(response => response.json()).then(json => {
-        loraTagSelect.innerHTML = "";
-        
-        item = document.createElement("option");
-        item.value = "";
-        item.text = "tags";
-        loraTagSelect.appendChild(item);
-
+        const tagSelect = document.getElementById("loraTagSelect");
+        tagSelect.innerHTML = '<option value="">tags</option>';
         if (json.ss_tag_frequency) {
-            const datasets = JSON.parse(json.ss_tag_frequency);
-            const tags = {};
-            for (const setName in datasets) {
-                const set = datasets[setName];
-                for (const t in set) {
-                    if (t in tags) {
-                        tags[t] += set[t];
-                    } else {
-                        tags[t] = set[t];
-                    }
-                }
+            const tags = {}, datasets = JSON.parse(json.ss_tag_frequency);
+            for (const set of Object.values(datasets)) {
+                for (const [t, v] of Object.entries(set)) tags[t] = (tags[t] || 0) + v;
             }
-            const sorted_tags = Object.entries(tags).sort((a, b) => b[1] - a[1]);
-            for (const i in sorted_tags) {
-                item = document.createElement("option");
-                item.value = sorted_tags[i][0].trim();
-                item.text = sorted_tags[i][0].trim() + ":" + sorted_tags[i][1];
-                loraTagSelect.appendChild(item);
-            }
+            Object.entries(tags).sort((a, b) => b[1] - a[1]).forEach(([t, v]) => {
+                tagSelect.add(new Option(`${t}:${v}`, t));
+            });
         }
-
-        loraLink.href = json._lorapreview_href || "";
-        loraPreview.src = json._lorapreview_src || "";
+        document.getElementById("loraLink").href = json._lorapreview_href || "";
+        document.getElementById("loraPreview").src = json._lorapreview_src || "";
     });
 }
 
 function toggleLora() {
+    const loraMode = document.getElementById("loraModeSelect").value;
     const loraFileSelect = document.getElementById("loraFileSelect");
     const loraName = loraFileSelect.options[loraFileSelect.selectedIndex].text;
-    const loraFile = loraFileSelect.value;
     const loraRate = document.getElementById("loraRate").value;
     const loraInput = document.getElementById("loraInput");
-    if (loraFile) {
-        const re = new RegExp("[\\n]?<lora:" + loraName + ":[-]?[0-9.]+>", "g");
-        if (loraInput.value.search(re) >= 0) {
-            loraInput.value = loraInput.value.replace(re, "");
+    
+    const re = new RegExp("[\\n]?<lora:" + loraName + ":[-]?[0-9.]+>", "g");
+    const match = re.exec(loraInput.value);
+
+    if (match) {
+        loraInput.setRangeText("", match.index, match.index + match[0].length, 'preserve');
+    } else {
+        const loraTag = `<lora:${loraName}:${loraRate}>`;
+        const container = `@${loraMode}{`;
+        const containerIdx = loraMode ? loraInput.value.indexOf(container) : -1;
+
+        if (containerIdx !== -1) {
+            const pos = containerIdx + container.length;
+            loraInput.setRangeText("\n" + loraTag, pos, pos, 'end');
         } else {
-            loraInput.value += "\n<lora:" + loraName + ":" + loraRate + ">";
+            const prefix = loraInput.value.trim() ? "\n" : "";
+            const text = loraMode ? `${prefix}@${loraMode}{\n${loraTag}\n}` : `${prefix}${loraTag}`;
+            loraInput.setRangeText(text, loraInput.value.length, loraInput.value.length, 'end');
+            if (loraMode) loraInput.setSelectionRange(loraInput.value.length - 2, loraInput.value.length - 2);
         }
     }
+    loraInput.focus();
 }
+
 
 function moveLora() {
     document.getElementById("moveLoraSelect").style.display = "block";
@@ -643,25 +638,18 @@ function moveLoraFile() {
 
 SCRIPT_TAG=r"""
 function toggleTag() {
-    const loraTagSelect = document.getElementById("loraTagSelect");
-    const loraTag = document.getElementById("loraTagSelect").value;
-    const loraRank = parseInt(document.getElementById("loraRank").value);
-    const loraInput = document.getElementById("loraInput");
-    if (loraTag) {
-        const re = new RegExp("^\\s*" + loraTag + "\\s*(,\\s*|\n|$)|,\\s*" + loraTag + "\\s*(,|\n|$)", "g");
-        if (loraInput.value.search(re) >= 0) {
-            loraInput.value = loraInput.value.replace(re, "$2")
-        } else {
-            if (loraInput.value) {
-                loraInput.value += ", " + loraTag;
-            } else {
-                loraInput.value = loraTag;
-            }
-        }
+    const el = document.getElementById("loraInput"), s = document.getElementById("loraTagSelect");
+    const tag = s.value || Array.from(s.options).slice(1, parseInt(document.getElementById("loraRank").value) + 1).map(o => o.value).join(", ");
+    const re = new RegExp(`(\\s*,\\s*)?${tag}(\\s*,\\s*)?`, "g");
+
+    if (el.value.match(re)) {
+        const match = re.exec(el.value);
+        el.focus();
+        el.setRangeText("", match.index, match.index + match[0].length, "end");
     } else {
-        for (var i = 1; i < Math.min(loraRank + 1, loraTagSelect.length); i++) {
-            loraInput.value += ", " + loraTagSelect.options[i].value;
-        }
+        const pre = (el.selectionStart > 0 && !/[,\s\n]$/.test(el.value.slice(0, el.selectionStart))) ? ", " : "";
+        el.focus();
+        el.setRangeText(pre + tag, el.selectionStart, el.selectionEnd, 'end');
     }
 }
 
@@ -895,9 +883,9 @@ async function refreshView() {
     }
     document.querySelectorAll('.FlipStreamLogBox').forEach(async x => {
         if (x.id in data.log) {
-            x.innerText = atob_utf8(data.log[x.id]) || "";
+            x.value = atob_utf8(data.log[x.id]) || "";
         } else {
-            x.innerText = "";
+            x.value = "";
         }
     });
     if (streamViewFlag) {
@@ -909,7 +897,7 @@ async function refreshView() {
         });
         document.querySelectorAll('.FlipStreamPasteBox').forEach(async x => {
             if (x.src != "") {
-                x.src = `/flipstreamviewer/paste?label=${x.name}&mtime=${data.paste_mtime[x.id] || 0}`;
+                x.src = `/flipstreamviewer/paste?label=${x.name}&mtime=${data.mtime[x.name+'_mtime'] || 0}`;
             }
         });
 
@@ -931,9 +919,6 @@ async function refreshView() {
             );
             updateStreamInterval = setInterval(updateStreamView, 1000 / streamInfo.fps);
         }
-    }
-    if (data.update_and_reload) {
-        updateParam(true);
     }
 }
 setInterval(refreshView, 1000);
@@ -1041,7 +1026,7 @@ function parseQueryParam() {
     if (p.has("presetFolder")) {
         const presetFolder = document.getElementById("presetFolderSelect").value;
         if (presetFolder != p.get("presetFolder")) {
-            updateParam(true, { presetFolder: p.get("presetFolder") }, {}, p.toString());
+            updateParam(true, false, { presetFolder: p.get("presetFolder") }, {}, p.toString());
             return;
         }
     }
@@ -1055,6 +1040,14 @@ function parseQueryParam() {
 }
 parseQueryParam();
 """
+
+
+@server.PromptServer.instance.routes.get("/flipstreamviewer/run_once")
+async def run_once(request):
+    server.PromptServer.instance.send_sync("FlipStreamViewer_run_once", {})
+    global refresh_updating
+    refresh_updating = 0
+    return web.Response()
 
 
 @server.PromptServer.instance.routes.get("/flipstreamviewer/stream/info")
@@ -1117,9 +1110,8 @@ async def paste(request):
     if not label:
         return web.Response(status=400, text="Label required")
 
-    key = label + "PasteBox"
-    if key in state:
-        data = state[key][1]
+    if label + "_thumbnail" in state:
+        data = state[label + "_thumbnail"]
     else:
         data = b""
     return web.Response(body=data, headers={"Content-Type": "image/png"})
@@ -1135,11 +1127,13 @@ async def paste_upload(request):
         return web.Response(status=400, text="Label required")
 
     data = await request.read()
-    with Image.open(io.BytesIO(data)) as img:
-        if any(s < 64 for s in img.size):
-            return web.Response(status=400, text="Image too small")
-
-    state[label + "PasteBox"] = (time.time(), data)
+    img = Image.open(io.BytesIO(data))
+    image = torch.from_numpy(np.array(img)).float()[None, :] / 255.0
+    if image.shape[3] == 4:
+        image = image[:,:,:,:3] * image[:,:,:,3:4]
+    state[label] = image
+    state[label + "_thumbnail"] = data
+    state[label + "_mtime"] = time.time()
     return web.Response()
 
 
@@ -1152,9 +1146,10 @@ async def paste_upload(request):
     if not label:
         return web.Response(status=400, text="Label required")
 
-    key = label + "PasteBox"
-    if key in state:
-        del state[key]
+    if label in state:
+        del state[label]
+        del state[label + "_thumbnail"]
+        del state[label + "_mtime"]
     return web.Response()
 
 
@@ -1172,12 +1167,12 @@ async def viewer(request):
           <details>
             <summary><i>{section}</i></summary>"""
 
-    def add_button(title, capture, update, **_):
+    def add_button(title, run, capture, **_):
         block[f"{title}"] = f"""
             <div class="row">"""
-        if update:
+        if run:
             block[f"{title}"] += f"""
-                <button class="willreload" onclick="updateParam(true)">Update</button>"""
+                <button class="willreload" onclick="updateParam(true, true)">Run</button>"""
         if capture:
             block[f"{title}"] += f"""
                 <button onclick="capture()">Capture</button>"""
@@ -1209,19 +1204,19 @@ async def viewer(request):
             block[f"{title}_{label}"] = f"""
             <div class="row" style="color: lightslategray;">
                 {label}: <input class="FlipStreamInputBox" id="{label}InputBox" style="color: lightslategray;" placeholder="{label}" type="number" name="{label}" value="{param[label]}" />
-                <button onclick="{label}InputBox.value=Math.floor(Math.random()*1e7); updateParam(true)">R</button>
+                <button onclick="{label}InputBox.value=Math.floor(Math.random()*1e7); updateParam(true, true)">R</button>
             </div>"""
         elif boxtype == "r4d":
             block[f"{title}_{label}"] = f"""
             <div class="row" style="color: lightslategray;">
                 {label}: <input class="FlipStreamInputBox" id="{label}InputBox" style="color: lightslategray;" placeholder="{label}" type="number" name="{label}" value="{param[label]}" />
-                <button onclick="{label}InputBox.value=Math.floor(Math.random()*1e4); updateParam(true)">R</button>
+                <button onclick="{label}InputBox.value=Math.floor(Math.random()*1e4); updateParam(true, true)">R</button>
             </div>"""
         else:
             block[f"{title}_{label}"] = f"""
             <div class="row" style="color: lightslategray;">
                 {label}: <input class="FlipStreamInputBox" id="{label}InputBox" style="color: lightslategray;" placeholder="{label}" type="{boxtype}" name="{label}" value="{param[label]}" />
-                <button onclick="updateParam(true)">U</button>
+                <button onclick="updateParam(true, true)">U</button>
             </div>"""
 
     def add_selectbox(title, label, listitems, **_):
@@ -1233,6 +1228,23 @@ async def viewer(request):
         param.setdefault(label, "")
         text_html = f"""
             <select class="FlipStreamSelectBox" id="{label}SelectBox" name="{label}">
+                <option value="">{label}</option>"""
+        for item in listitems:
+            text_html += f"""
+                <option value="{item}"{" selected" if param[label] == item else ""}>{item}</option>"""
+        text_html += f"""
+            </select>"""
+        block[f"{title}_{label}"] = text_html
+
+    def add_sizeselect(title, label, listitems, **_):
+        listitems = listitems.split(",")
+        if not label.isidentifier():
+            raise RuntimeError(f"{title}: label must contain only valid identifier characters.")
+        if not all(item == html.escape(item) for item in listitems):
+            raise RuntimeError(f"{title}: listitems must contain only HTML-acceptable characters.")
+        param.setdefault(label, "")
+        text_html = f"""
+            <select class="FlipStreamSizeSelect" id="{label}SizeSelect" name="{label}">
                 <option value="">{label}</option>"""
         for item in listitems:
             text_html += f"""
@@ -1329,10 +1341,10 @@ async def viewer(request):
             block[f"{title}_{label}"] = f"""
             <textarea class="FlipStreamLogBox" id="{label}LogBox" style="color: lightslategray;" placeholder="{label}" rows="{rows}" name="{label}" readonly></textarea>"""
 
-    hist = server.PromptServer.instance.prompt_queue.get_history(max_items=1)
-    nodedict = next(iter(hist.values()))["prompt"][2] if hist else None
-    if nodedict:
-        for node in nodedict.values():
+    info = server.PromptServer.instance.prompt_queue.get_history(max_items=1, map_function=lambda p: p["prompt"][2])
+    nodelist = next(iter(info.values())).values() if info else []
+    if nodelist:
+        for node in nodelist:
             class_type = node["class_type"]
             title = node["_meta"]["title"]
             inputs = node["inputs"]
@@ -1348,6 +1360,8 @@ async def viewer(request):
                 add_inputbox(title, **inputs)
             if class_type.startswith("FlipStreamSelectBox"):
                 add_selectbox(title, **inputs)
+            if class_type.startswith("FlipStreamSizeSelect"):
+                add_sizeselect(title, **inputs)
             if class_type.startswith("FlipStreamFileSelect"):
                 add_fileselect(title, **inputs)
             if class_type == "FlipStreamPreviewBox":
@@ -1360,6 +1374,9 @@ async def viewer(request):
     text_html = f"""<html>{HEAD}<body>
     <div id="mainDialog">
         <div id="leftPanel">
+            <div class="row">
+                <button class="willreload" onclick="updateParam(true, true)">Run</button>
+            </div>
           <details>
             <summary><i>Input</i></summary>
             {"".join([x[1] for x in sorted(block.items())])}
@@ -1369,8 +1386,8 @@ async def viewer(request):
             <div id="messageBox"></div>
         </div>
         <div id="rightPanel">
-            <progress id="statusLastElapsed" max="60" value="{state["lastElapsed"]}" style="width: 100%;"></progress>
-            <progress id="statusElapsed" max="60" value="0" style="width: 100%;"></progress>
+            <progress id="statusLastElapsed" max="120" value="{state["lastElapsed"]}" style="width: 100%;"></progress>
+            <progress id="statusElapsed" max="120" value="0" style="width: 100%;"></progress>
           <details>
             <summary><i>Status</i></summary>
             <textarea id="statusInfo" style="color: lightslategray;" rows="5"></textarea>
@@ -1411,6 +1428,10 @@ async def viewer(request):
           </details>
           <details>
             <summary><i>Lora</i></summary>
+            <select id="loraModeSelect" class="willreload" onchange="updateParam(true)">
+                <option value="" selected>lora mode</option>
+                {"".join([f'<option value="{dir.name}"{" selected" if state["loraMode"] == dir.name else ""}>{dir.name}</option>' for dir in Path("ComfyUI/models/loras").glob("*/")])}
+            </select>
             <select id="loraFolderSelect" class="willreload" onchange="updateParam(true)">
                 <option value="" selected>lora folder</option>
                 {"".join([f'<option value="{dir.name}"{" selected" if state["loraFolder"] == dir.name else ""}>{dir.name}</option>' for dir in Path("ComfyUI/models/loras", state["loraMode"]).glob("*/")])}
@@ -1470,9 +1491,9 @@ async def viewer(request):
             </select>
             <div class="row">
                 <button onclick="showTagDialog()">Choose</button>
-                <button onclick="updateParam(true)">Update</button>
+                <button onclick="updateParam(true, true)">Run</button>
                 <button onclick="clearLoraInput()">Clr</button>
-                <button onclick="showTagDialog();tagCSel();tagRSel();tagOK();updateParam(true)">R</button>
+                <button onclick="showTagDialog();tagCSel();tagRSel();tagOK();updateParam(true, true)">R</button>
             </div>
             <textarea id="loraInput" placeholder="Enter lora" rows="12">{atob_utf8(param["lora"])}</textarea>
             <div class="row">
@@ -1566,20 +1587,30 @@ async def get_status(request):
     if request.remote not in allowed_ips:
         raise HTTPForbidden()
 
-    # Get status info from history
-    remain = server.PromptServer.instance.prompt_queue.get_tasks_remaining()
-    hist = server.PromptServer.instance.prompt_queue.get_history(max_items=1)
     status_elapsed = 0
     status_info = []
-    if frame_updating:
-        status_elapsed = int(time.time() - frame_updating)
-        status_info.append(f"updating {status_elapsed}s")
+    
+    remain = server.PromptServer.instance.prompt_queue.get_tasks_remaining()
+    global refresh_updating
+    if remain == 0:
+        refresh_updating = 0
+    elif refresh_updating == 0:
+        refresh_updating = time.time()
+
+    if refresh_updating:
+        status_elapsed = int(time.time() - refresh_updating)
+        status_info.append(f"{status_elapsed}s")
+
+    if "current" in state:
+        status_info.append(state["current"]) 
 
     status_info.append(f"q{remain}")
-    info = next(iter(hist.values()))["status"] if hist else None
-    if info:
-        errinfo = info["messages"][2][1]
-        status_info.append(info["status_str"])
+
+    info = server.PromptServer.instance.prompt_queue.get_history(max_items=1, map_function=lambda p: p["status"])
+    status = next(iter(info.values())) if info else []
+    if status:
+        status_info.append(status["status_str"])
+        errinfo = status["messages"][2][1]
         status_info += [errinfo[key] for key in ["node_id", "node_type", "exception_message", "exception_type"] if key in errinfo]
 
     data = refresh_data.copy()
@@ -1589,7 +1620,7 @@ async def get_status(request):
     data["status_elapsed"] = status_elapsed
     data["status_info"] = status_info
     data["preview_mtime"] = {key: state[key][0] for key in state if key.endswith("PreviewBox")}
-    data["paste_mtime"] = {key: state[key][0] for key in state if key.endswith("PasteBox")}
+    data["mtime"] = {key: state[key] for key in state if key.endswith("_mtime")}
     data["log"] = {key: state[key] for key in state if key.endswith("LogBox")}
     return web.json_response(data)
 
@@ -1769,8 +1800,8 @@ class FlipStreamSection:
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, **_):
-        return (True,)
+    def run(self, hook=True, **_):
+        return (hook,)
 
 
 class FlipStreamButton:
@@ -1778,8 +1809,8 @@ class FlipStreamButton:
     def INPUT_TYPES(s):
         return {
             "required": {
+                "run": ("BOOLEAN", {"default": True}),
                 "capture": ("BOOLEAN", {"default": True}),
-                "update": ("BOOLEAN", {"default": True}),
             },
             "optional": {
                 "hook": (anytype,),
@@ -1790,8 +1821,8 @@ class FlipStreamButton:
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, **_):
-        return (True,)
+    def run(self, hook=True, **_):
+        return (hook,)
 
 
 class FlipStreamSlider:
@@ -1818,8 +1849,6 @@ class FlipStreamSlider:
         return hash(param[label])
     
     def run(self, label, default, **_):
-        global frame_updating
-        frame_updating = time.time()
         param.setdefault(label, default)
         return (float(param[label]), int(float(param[label])), bool(float(param[label])))
 
@@ -1846,8 +1875,6 @@ class FlipStreamTextBox:
         return hash(param[label])
    
     def run(self, label, default, **_):
-        global frame_updating
-        frame_updating = time.time()
         param.setdefault(label, btoa_utf8(default))
         text = atob_utf8(param[label])
         return (text, bool(text))
@@ -1871,22 +1898,18 @@ class FlipStreamInputBox:
 
     @classmethod
     def IS_CHANGED(cls, label, default, **_):
-        param.setdefault(label, default)
-        return hash(param[label])
-
-    def floator0(self, v):
-        try:
-            return float(v)
-        except:
-            return 0
+        return hash(param.get(label))
     
     def run(self, label, default, boxtype, **_):
-        global frame_updating
-        frame_updating = time.time()
         param.setdefault(label, default)
-        t = param[label]
-        v = self.floator0(t)
-        return (t, v, int(v), bool(t if boxtype == "text" else v))
+        text = param[label]
+        enable = bool(text)
+        try:
+            num = float(text)
+            enable = bool(num)
+        except:
+            num = 0
+        return (text, num, int(num), enable)
 
 
 class FlipStreamSelectBox:
@@ -1913,8 +1936,6 @@ class FlipStreamSelectBox:
         return hash(param[label])
 
     def run(self, label, default, **_):
-        global frame_updating
-        frame_updating = time.time()
         param.setdefault(label, "")
         item = param[label] if param[label] else default
         return (item, param[label] != "")
@@ -1926,6 +1947,68 @@ class FlipStreamSelectBox_Samplers(FlipStreamSelectBox):
 
 class FlipStreamSelectBox_Scheduler(FlipStreamSelectBox):
     LISTITEMS = comfy.samplers.KSampler.SCHEDULERS
+
+
+class FlipStreamSizeSelect:
+    SIZEDICT = {
+        "sdxl": {
+            "1:1": (1024, 1024),
+            "16:9": (1344, 768),
+            "9:16": (768, 1344),
+            "4:3": (1152, 896),
+            "3:4": (896, 1152),
+            "3:2": (1216, 832),
+            "2:3": (832, 1216),
+        },
+        "qwen": {
+            "1:1": (1328, 1328),
+            "16:9": (1664, 928),
+            "9:16": (928, 1664),
+            "4:3": (1472, 1104),
+            "3:4": (1104, 1472),
+            "3:2": (1584, 1056),
+            "2:3": (1056, 1584),
+        },
+        "wan": {
+            "1:1": (512, 512),
+            "16:9": (832, 480),
+            "9:16": (480, 832),
+            "4:3": (832, 480),
+            "3:4": (480, 832),
+            "3:2": (832, 480),
+            "2:3": (480, 832),
+        }
+    }
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "label": ("STRING", {"default": "empty"}),
+                "default": (list(s.SIZEDICT["sdxl"].keys()),),
+                "modeltype": (["sdxl", "qwen", "wan"],),
+                "listitems": ("STRING", {"default": ",".join(s.SIZEDICT["sdxl"].keys())})
+            },
+        }
+
+    RETURN_TYPES = ("INT", "INT", "BOOLEAN")
+    RETURN_NAMES = ("width", "height", "enable")
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    @classmethod
+    def IS_CHANGED(cls, label, default, **_):
+        param.setdefault(label, default)
+        return hash(param[label])
+
+    def run(self, label, default, modeltype, **_):
+        param.setdefault(label, default)
+        width, height = self.SIZEDICT[modeltype][param.get(label)]
+        return (width, height, param[label] != "")
+
+
+class FlipStreamGetSize(FlipStreamSizeSelect):
+    pass
 
 
 class FlipStreamFileSelect:
@@ -1978,8 +2061,6 @@ class FlipStreamFileSelect:
         return hash(param[label])
 
     def run(self, label, default, folder_path, **_):
-        global frame_updating
-        frame_updating = time.time()
         param.setdefault(label, "")
         file = param[label] if param[label] else default
         return (file, str(Path(folder_path, file)), param[label] != "")
@@ -2079,23 +2160,12 @@ class FlipStreamPasteBox:
 
     @classmethod
     def IS_CHANGED(cls, label):
-        return state.get(label + "PasteBox", [0])[0]
+        return hash(state.get(label + "_mtime"))
     
     def run(self, label, **_):
-        key = label + "PasteBox"
-        if key not in state:
+        if label not in state:
             return (None, False)
-
-        global frame_updating
-        frame_updating = time.time()
-
-        img = Image.open(io.BytesIO(state[key][1]))
-        image = torch.from_numpy(np.array(img)).float()[None, :] / 255.0
-
-        if image.shape[3] == 4:
-            image = image[:,:,:,:3] * image[:,:,:,3:4]
-
-        return (image, True)
+        return (state[label], True)
     
 
 class FlipStreamLogBox:
@@ -2119,12 +2189,11 @@ class FlipStreamLogBox:
         return ()
 
 
-class FlipStreamSetUpdateAndReload:
+class FlipStreamRunOnce:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "delay_sec": ("FLOAT", {"default": 1, "min": 0.0, "max": 30.0, "step": 0.1}),
             },
             "optional": {
                 "hook": (anytype,),
@@ -2136,10 +2205,11 @@ class FlipStreamSetUpdateAndReload:
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, delay_sec, **_):
-        time.sleep(delay_sec)
-        refresh_data["update_and_reload"] = True
-        return (True,)
+    def run(self, hook=True, **_):
+        server.PromptServer.instance.send_sync("FlipStreamViewer_run_once", {})
+        global refresh_updating
+        refresh_updating = 0
+        return (hook,)
 
 
 class FlipStreamSetMessage:
@@ -2160,10 +2230,128 @@ class FlipStreamSetMessage:
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, message, fontsize, **_):
+    def run(self, message, fontsize, hook=True, **_):
         refresh_data["message"] = btoa_utf8(message)
         refresh_data["message_fontsize"] = f"{fontsize}rem"
-        return (True,)
+        return (hook,)
+
+
+class FlipStreamAnd:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {},
+            "optional": {f"v{i}": (anytype,) for i in range(10)}
+        }
+
+    RETURN_TYPES = (anytype,)
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, **kwargs):
+        res = None
+        for res in kwargs.values():
+            if not res: break
+        return (res,)
+
+
+class FlipStreamOr:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {},
+            "optional": {f"v{i}": (anytype,) for i in range(10)}
+        }
+
+    RETURN_TYPES = (anytype,)
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, **kwargs):
+        res = None
+        for res in kwargs.values():
+            if res: break
+        return (res,)
+
+
+class FlipStreamSetState:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "label": ("STRING", {"default": "empty"}),
+                "replace": ("BOOLEAN", {"default": False}),
+                "thumbnail": ("BOOLEAN", {"default": False}),
+            },
+            "optional": {
+                "hook": (anytype,),
+                "value": (anytype,),
+            }
+        }
+
+    RETURN_TYPES = (anytype,)
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, label, replace, thumbnail, hook=True, value=None, **_):
+        if replace or label not in state:
+            if thumbnail and value is not None:
+                buf = np.array(value[0].cpu().numpy() * 255, dtype=np.uint8)
+                image = Image.fromarray(buf)
+                image.thumbnail((256, 256))
+                with io.BytesIO() as output:
+                    image.save(output, format="PNG", compress_level=STREAM_COMPRESSION)
+                    state[label + "_thumbnail"] = output.getvalue()
+                    state[label + "_mtime"] = time.time()
+            else:
+                if label + "_thumbnail" in state:
+                    del state[label + "_thumbnail"]
+                    del state[label + "_mtime"]
+            state[label] = value
+        return (hook,)
+
+
+class FlipStreamGetState:
+    CACHED_LASTGET = {}
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "label": ("STRING", {"default": "empty"}),
+            },
+            "optional": {
+                "hook": (anytype,),
+            },
+            "hidden": {
+                "unique_id": "UNIQUE_ID"
+            }
+        }
+
+    RETURN_TYPES = (anytype, "BOOLEAN", "BOOLEAN")
+    RETURN_NAMES = ("value", "enable", "changed")
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    @classmethod
+    def IS_CHANGED(cls, label, **_):
+        value = state.get(label)
+        return hash(value[:1024] if hasattr(value, '__getitem__') else value)
+
+    def run(self, label, unique_id, **_):
+        enable = label in param
+        value = state.get(label)
+
+        changed = False
+        h = hash(str(value[:1024]) if hasattr(value, '__getitem__') else value)
+        cache = FlipStreamGetState.CACHED_LASTGET.setdefault(unique_id, {})
+        if cache.get(label, h) != h:
+            changed = True
+        cache[label] = h
+        return (value, enable, changed)
 
 
 class FlipStreamSetParam:
@@ -2186,17 +2374,20 @@ class FlipStreamSetParam:
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, label, value, replace, b64enc, **_):
+    def run(self, label, value, replace, b64enc, hook=True, **_):
         empty = ""
         if b64enc:
             value = btoa_utf8(value)
             empty = btoa_utf8(empty)
         if replace or label not in param or param[label] == empty:
+            param[label] = value
             refresh_param[label] = value
-        return (True,)
+        return (hook,)
 
 
 class FlipStreamGetParam:
+    CACHED_LASTGET = {}
+
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -2205,30 +2396,114 @@ class FlipStreamGetParam:
                 "default": ("STRING", {"default": ""}),
                 "b64dec": ("BOOLEAN", {"default": False}),
             },
+            "optional": {
+                "hook": (anytype,),
+            },
+            "hidden": {
+                "unique_id": "UNIQUE_ID"
+            }
         }
 
-    RETURN_TYPES = ("STRING",)
+    RETURN_TYPES = (anytype, "FLOAT", "INT", "BOOLEAN", "BOOLEAN")
+    RETURN_NAMES = ("text", "float", "int", "enable", "changed")
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
     @classmethod
-    def IS_CHANGED(cls, label, default, b64dec):
-        value = default
-        if label in param:
-            value = param[label]
-            if b64dec:
-                value = atob_utf8(value)
-        return hash(value)
+    def IS_CHANGED(cls, label, **_):
+        return hash(param.get(label))
 
-    def run(self, label, default, b64dec):
-        global frame_updating
-        frame_updating = time.time()
-        value = default
-        if label in param:
-            value = param[label]
-            if b64dec:
-                value = atob_utf8(value)
-        return (value,)
+    def __init__(self):
+        self.lastget = {}
+    
+    def run(self, label, default, b64dec, unique_id, **_):
+        enable = label in param
+        text = param.get(label, default)
+        if enable and b64dec:
+            text = atob_utf8(text)
+        enable = bool(text)
+        try:
+            num = float(text)
+            enable = bool(num)
+        except:
+            num = 0
+
+        changed = False
+        h = hash(text)
+        cache = FlipStreamGetParam.CACHED_LASTGET.setdefault(unique_id, {})
+        if cache.get(label, h) != h:
+            changed = True
+        cache[label] = h
+        return (text, num, int(num), enable, changed)
+
+
+class FlipStreamGet:
+    CACHED_LASTGET = {}
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {},
+            "optional": {
+                "hook": (anytype,),
+                **{f"label{i}": ("STRING", {"default": ""}) for i in range(20)}
+            },
+            "hidden": {
+                "unique_id": "UNIQUE_ID"
+            }
+        }
+
+    RETURN_TYPES = (anytype, "BOOLEAN") + (anytype,) * 20
+    RETURN_NAMES = ("hook", "changed") + tuple(f"value{i}" for i in range(20))
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def get_value(self, label, unique_id):
+        def auto(v):
+            try:
+                return atob_utf8(v)
+            except:
+                return v
+
+        convert_map = {
+            "": auto,
+            "text": str,
+            "bool": bool,
+            "int": int,
+            "float": float,
+            "b64dec": atob_utf8,
+        }
+
+        convert = ""
+        source = param
+        label, _, convert = label.partition("->")
+        label, sep, default = label.partition("|")
+        if not sep: default = None
+        if label.startswith("state:"):
+            _, _, label = label.partition(":")
+            source = state
+
+        value = None
+        changed = False
+        if label:
+            value = convert_map[convert](source.get(label, default))
+            cache = FlipStreamGet.CACHED_LASTGET.setdefault(unique_id, {})
+            h = hash(str(value[:1024]) if hasattr(value, '__getitem__') else value)
+            if cache.get(label, h) != h:
+                changed = True
+            cache[label] = h
+            
+        return value, changed
+
+    def run(self, unique_id, hook=True, **kwargs):
+        vlist = []
+        changed = False
+        for k in kwargs:
+            if k.startswith("label"):
+                val, c = self.get_value(kwargs[k], unique_id)
+                vlist.append(val)
+                changed |= c
+        return (hook, changed, *vlist)
 
 
 class FlipStreamGetPreviewRoi:
@@ -2257,8 +2532,6 @@ class FlipStreamGetPreviewRoi:
         return hash(roi_data)
 
     def run(self, label, default_left, default_top, default_right, default_bottom, width, height):
-        global frame_updating
-        frame_updating = time.time()
         roi_data = param.get(label + "PreviewRoi", {})
         left = int(roi_data['sx'] * width) if 'sx' in roi_data else default_left
         top = int(roi_data['sy'] * height) if 'sy' in roi_data else default_top
@@ -2321,10 +2594,10 @@ class FlipStreamTextConcat:
         return {
             "required": {
                 "joinstr": ("STRING", {"default": "", "multiline": True}),
-                "text": ("STRING",),
-                "text2": ("STRING",),
-                "text3": ("STRING",),
-                "text4": ("STRING",),
+                "enable": ("BOOLEAN", {"default": True})
+            },
+            "optional": {
+                **{f"text{i}": ("STRING", {"default": ""}) for i in range(20)}
             }
         }
 
@@ -2332,8 +2605,17 @@ class FlipStreamTextConcat:
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, joinstr, text, text2, text3, text4, **_):
-        return (str(joinstr).join(map(str, filter(None, [text, text2, text3, text4]))),)
+    def run(self, joinstr, enable, **kwargs):
+        if not enable:
+            return ("",)
+        
+        text = []
+        for k in kwargs:
+            if k.startswith("text"):
+                val = kwargs[k]
+                text.append(val)
+
+        return (str(joinstr).join(map(str, filter(None, text))),)
 
 
 class FlipStreamGetFrame:
@@ -2481,6 +2763,8 @@ class FlipStreamSource:
                 "width": ("INT", {"default": 0, "min": 0, "max": 2048, "step": 32}),
                 "height": ("INT", {"default": 0, "min": 0, "max": 2048, "step": 32}),
                 "frames": ("INT", {"default": 0, "min": 0}),
+                "strim": ("INT", {"default": 0, "min": 0}),
+                "etrim": ("INT", {"default": 0, "min": 0}),
             },
             "optional": {
                 "image": ("IMAGE",),
@@ -2488,12 +2772,12 @@ class FlipStreamSource:
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "LATENT",)
-    RETURN_NAMES = ("image", "latent",)
+    RETURN_TYPES = ("IMAGE", "LATENT", "BOOLEAN")
+    RETURN_NAMES = ("image", "latent", "enable")
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, width, height, frames, image=None, vae=None):
+    def run(self, width, height, frames, strim, etrim, image=None, vae=None):
         latent = None
         if image is not None and not torch.any(image):
             image = None
@@ -2509,15 +2793,16 @@ class FlipStreamSource:
                 height = image.shape[1]
             if not frames:
                 frames = image.shape[0]
-        if image is not None and image.shape[0] >= frames:
-            buf = image[:frames]
+        if image is not None and image.shape[0] >= frames and frames > strim + etrim:
+            buf = image[strim:frames-etrim]
             buf = buf.movedim(-1,1)
-            buf = comfy.utils.common_upscale(buf, width, height, "lanczos", "centor")
+            buf = comfy.utils.common_upscale(buf, width, height, "lanczos", "center")
             image = buf.movedim(1,-1)
             if vae:
                 latent = {"samples": vae.encode(image)}
             else:
                 latent = {"samples": torch.zeros([frames, 4, height // 8, width // 8], device=comfy.model_management.intermediate_device())}
+            return (image, latent, True)
         else:
             if not frames:
                 frames = 1
@@ -2527,7 +2812,7 @@ class FlipStreamSource:
                 height = 64
             image = torch.zeros([frames, height, width, 3])
             latent = {"samples": torch.zeros([frames, 4, height // 8, width // 8], device=comfy.model_management.intermediate_device())}
-        return (image, latent,)
+            return (image, latent, False)
 
 
 class FlipStreamSwitch:
@@ -2700,7 +2985,7 @@ class FlipStreamSegMask:
             
         # Load model
         if FlipStreamSegMask.model is None:
-            FlipStreamSegMask.model = transformers.AutoModelForCausalLM.from_pretrained(
+            FlipStreamSegMask.model = transformers.Florence2ForConditionalGeneration.from_pretrained(
                 model_id,
                 trust_remote_code=True,
                 attn_implementation='sdpa',
@@ -2751,6 +3036,8 @@ class FlipStreamSegMask:
 
 
 class FlipStreamChat:
+    CACHED_OUTPUT = {}
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -2772,25 +3059,29 @@ class FlipStreamChat:
                 "presence_penalty": ("FLOAT", {"default": 0, "min": 0}),
                 "frequency_penalty": ("FLOAT", {"default": 0.5, "min": 0}),
                 "repeat_penalty": ("FLOAT", {"default": 1.0, "min": 0}),
-                "response_format": ("STRING", {"default": "", "multiline": True})
+                "response_format": ("STRING", {"default": "", "multiline": True}),
+                "enable": ("BOOLEAN", {"default": True}),
             },
             "optional": {
                 "chat_model": ("CHAT_MODEL",),
                 "messages": ("MESSAGES",)
+            },
+            "hidden": {
+                "unique_id": "UNIQUE_ID"
             }
         }
 
     RETURN_TYPES = ("CHAT_MODEL", "STRING", "MESSAGES")
-    RETURN_NAMES =("chat_model", "response", "messages")
+    RETURN_NAMES = ("chat_model", "response", "messages")
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
     def __init__(self):
         self.model = None
-        self.messages = []
         self.system = None
+        self.messages = []
 
-    def load_model(self, model_file, n_ctx, n_gpu_layers):
+    def load_model(self, model_file, n_ctx, n_gpu_layers, unload_other_models):
         h = hash((model_file, n_ctx, n_gpu_layers))
         if self.model is None or self.model._FlipStreamChat_is_closed or self.model._FlipStreamChat_last_hash != h:
             model_path = Path(folder_paths.models_dir, "LLM", model_file)
@@ -2798,13 +3089,23 @@ class FlipStreamChat:
                 raise RuntimeError(f"FlipStreamChat: {model_path} not found.")
             if Llama is None:
                 raise RuntimeError("FlipStreamChat: llama-cpp-python required.")
+            if unload_other_models:
+                try:
+                    comfy.model_management.unload_all_models()
+                    comfy.model_management.soft_empty_cache(True)
+                    comfy.gc.collect()
+                    torch.cuda.empty_cache()
+                    torch.cuda.ipc_collect()
+                except:
+                    pass
             self.model = Llama(str(model_path), chat_format="llama-2", n_ctx=n_ctx, n_gpu_layers=n_gpu_layers, verbose=False)
             self.model._FlipStreamChat_is_closed = False
             self.model._FlipStreamChat_last_hash = h
 
     def close_model(self):
-        self.model.close()
-        self.model._FlipStreamChat_is_closed = True
+        if self.model:
+            self.model.close()
+            self.model._FlipStreamChat_is_closed = True
 
     def chat(self, system, user, stop, messages, response_format, **kwargs):
         if system != self.system:
@@ -2822,37 +3123,34 @@ class FlipStreamChat:
             response_format = None
         return self.model.create_chat_completion(messages, stop=list(filter(str.strip, stop.split(","))), response_format=response_format, **kwargs)["choices"][0]["message"]
 
-    def run(self, model_file, n_ctx, n_gpu_layers, unload_other_models, close_after_use, system, user, instant, max_history, stop, chat_model=None, messages=None, **kwargs):
-        if unload_other_models:
-            comfy.model_management.unload_all_models()
-            comfy.model_management.soft_empty_cache(True)
-            try:
-                comfy.gc.collect()
-                torch.cuda.empty_cache()
-                torch.cuda.ipc_collect()
-            except:
-                pass
+    def run(self, model_file, n_ctx, n_gpu_layers, unload_other_models, close_after_use, system, user, instant, max_history, stop, enable, unique_id, chat_model=None, messages=None, **kwargs):
         if chat_model is not None:
             self.model = chat_model
         if messages is None:
             messages = self.messages
+        if not enable:
+            if close_after_use:
+                self.close_model()
+            return (self.model, None, messages)
+        
         if max_history == 0:
             messages.clear()
         elif max_history >= 1:
             messages[:] = messages[:max_history]
-        self.load_model(model_file, n_ctx, n_gpu_layers)
+        self.load_model(model_file, n_ctx, n_gpu_layers, unload_other_models)
+        cache = FlipStreamChat.CACHED_OUTPUT
         if instant:
             res = self.chat(system, user, stop, messages.copy(), **kwargs)
-            output = res["content"]
+            cache[unique_id] = res["content"]
         else:
             res = self.chat(system, user, stop, messages, **kwargs)
-            output = res["content"]
+            cache[unique_id] = res["content"]
             if res["role"] == "assistant":
-                messages.append(dict(role="assistant", content=output))
+                messages.append(dict(role="assistant", content=cache[unique_id]))
         self.messages = messages
         if close_after_use:
             self.close_model()
-        return (self.model, output, messages)
+        return (self.model, cache.get(unique_id), messages)
 
 
 class FlipStreamParseJson:
@@ -2864,14 +3162,18 @@ class FlipStreamParseJson:
                 "keys": ("STRING", {"default": "", "multiline": True}),
                 "joinstr": ("STRING", {"default": ",", "multiline": True}),
                 "ignore_error": ("BOOLEAN", {"default": True}),
+                "enable": ("BOOLEAN", {"default": True}),
             }
-        }
+         }
 
     RETURN_TYPES = ("STRING",)
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, json_input, keys, joinstr, ignore_error):
+    def run(self, json_input, keys, joinstr, ignore_error, enable):
+        if not enable:
+            return ("",)
+
         value = []
         try:
             for key in keys.split("\n"):
@@ -2880,6 +3182,72 @@ class FlipStreamParseJson:
             if not ignore_error:
                 raise RuntimeError(f"FlipStreamParseJsonItem: Invalid JSON input: {e}: {json_input}")
         return (joinstr.join(value),)
+
+
+class FlipStreamChatJson(FlipStreamChat):
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "model_file": ([path.name for path in Path(folder_paths.models_dir, "LLM").glob("*.gguf")],),
+                "unload_other_models": ("BOOLEAN", {"default": False}),
+                "close_after_use": ("BOOLEAN", {"default": False}),
+                "system": ("STRING", {"default": "", "multiline": True}),
+                "user": ("STRING", {"default": "", "multiline": True}),
+                "seed": ("INT", {"default": -1}),
+                "n_ctx": ("INT", {"default": 2048, "min": 0, "max": 8192}),
+                "enable": ("BOOLEAN", {"default": True})
+            },
+            "optional": {
+                "chat_model": ("CHAT_MODEL",),
+                **{f"label{i}": ("STRING", {"default": ""}) for i in range(20)}
+            },
+            "hidden": {
+                "unique_id": "UNIQUE_ID"
+            }
+        }
+
+    RETURN_TYPES = ("CHAT_MODEL", "STRING", "MESSAGES") + (anytype,) * 20
+    RETURN_NAMES = ("chat_model", "response", "messages") + tuple(f"value{i}" for i in range(20))
+    FUNCTION = "run2"
+    CATEGORY = "FlipStreamViewer"
+
+    def run2(self, **kwargs):
+        kwargs.update({
+            "n_gpu_layers": -1,
+            "instant": False,
+            "max_history": 0,
+            "stop": "",
+            "temperature":0.2,
+            "top_p": 0.95,
+            "max_tokens": kwargs["n_ctx"] - 512,
+            "presence_penalty": 0,
+            "frequency_penalty": 0.5,
+            "repeat_penalty": 1.0
+        })
+
+        label = {}
+        for k in list(kwargs):
+            if k.startswith('label'):
+                if kwargs[k]:
+                    label[k] = kwargs[k]
+                del kwargs[k]
+        
+        response_format = {
+            "type": "json_object",
+            "schema": {
+                "type": "object",
+                "properties": {k: {"type": "string"} for k in label.values()},
+                "required": list(label.values())
+            }
+        }
+        kwargs["response_format"] = json.dumps(response_format, ensure_ascii=False, indent=4)
+        chat_model, response, messages = self.run(**kwargs)
+        value = {f"label{i}": "" for i in range(20)}
+        if response:
+            data = json.loads(response, strict=False)
+            value.update({k: data[v] for k, v in label.items()})
+        return (chat_model, response, messages, *value.values())
 
 
 class FlipStreamBatchPrompt:
@@ -2992,7 +3360,6 @@ class FlipStreamViewer:
                 "idle": ("FLOAT", {"default": 1.0, "min": 0.0}),
                 "fps": ("INT", {"default": 16, "min": 1, "max": 30}),
                 "loramode": ("STRING", {"default": ""}),
-                "reset_updating": ("BOOLEAN", {"default": True}),
                 "pingpong": ("BOOLEAN", {"default": True}),
             },
         }
@@ -3010,7 +3377,11 @@ class FlipStreamViewer:
     FUNCTION = "run"
     CATEGORY = "FlipStreamViewer"
 
-    def run(self, tensor, fps, reset_updating, pingpong, **_):
+    def run(self, allowip, tensor, fps, loramode, pingpong, **_):
+        global allowed_ips
+        allowed_ips = ["127.0.0.1"] + list(map(str.strip, allowip.split(",")))
+        state["loraMode"] = loramode
+
         fb = []
         buf = (tensor.detach().cpu().numpy() * 255).astype(np.uint8)
         if tensor.shape[0] != 1 and pingpong:
@@ -3021,16 +3392,267 @@ class FlipStreamViewer:
                 img.save(output, format="PNG", compress_level=STREAM_COMPRESSION)
                 fb.append(output.getvalue())
         global frame_buffer
-        global frame_updating
         global frame_mtime
         global frame_fps
         frame_buffer = fb
-        if reset_updating:
-            frame_updating = None
         frame_mtime = time.time()
         frame_fps = fps
         return ()
 
+
+class FlipStreamViewerSimple:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "tensor": ("IMAGE",),
+                "idle": ("FLOAT", {"default": 0, "min": 0.0}),
+                "fps": ("INT", {"default": 16, "min": 1, "max": 30}),
+                "pingpong": ("BOOLEAN", {"default": True}),
+            },
+        }
+
+    @classmethod
+    def IS_CHANGED(cls, idle, **_):
+        time.sleep(idle)
+        return None
+
+    RETURN_TYPES = ()
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, tensor, fps, pingpong, **_):
+        fb = []
+        buf = (tensor.detach().cpu().numpy() * 255).astype(np.uint8)
+        if tensor.shape[0] != 1 and pingpong:
+            buf = np.concatenate([buf, np.flip(buf, axis=0)])
+        for image in buf:
+            with io.BytesIO() as output:
+                img = Image.fromarray(image)
+                img.save(output, format="PNG", compress_level=STREAM_COMPRESSION)
+                fb.append(output.getvalue())
+        global frame_buffer
+        global frame_mtime
+        global frame_fps
+        frame_buffer = fb
+        frame_mtime = time.time()
+        frame_fps = fps
+        return ()
+
+
+class FlipStreamAllowIp:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "allowip": ("STRING", {"default": ""}),
+            },
+            "optional": {
+                "hook": (anytype,),
+            },
+        }
+
+    RETURN_TYPES = (anytype,)
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, allowip, hook=True, **_):
+        global allowed_ips
+        allowed_ips = ["127.0.0.1"] + list(map(str.strip, allowip.split(",")))
+        return (hook,)
+
+
+class FlipStreamCurrent:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "current": ("STRING", {"default": ""}),
+            },
+            "optional": {
+                "hook": (anytype,),
+            },
+        }
+
+    RETURN_TYPES = (anytype,)
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, current, hook=True, **_):
+        state["current"] = current
+        return (hook,)
+
+
+class FlipStreamLoraMode:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "loraMode": ("STRING", {"default": ""}),
+            },
+            "optional": {
+                "hook": (anytype,),
+            },
+        }
+
+    RETURN_TYPES = (anytype,)
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, loraMode, hook=True, **_):
+        state["loraMode"] = loraMode
+        return (hook,)
+
+
+class FlipStreamLoadLora:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model": ("MODEL",),
+                "clip": ("CLIP",),
+                "mode": ("STRING", {"default": ""}),
+            },
+            "optional": {
+                "hook": (anytype,),
+            },
+        }
+
+    RETURN_TYPES = ("MODEL", "CLIP", "STRING")
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    @classmethod
+    def IS_CHANGED(cls, mode, **_):
+        text = re.sub(rf"@(\w+)\{{(.*?)\}}", lambda m: m.group(2) if m.group(1) == mode else "", atob_utf8(param.get("lora", "")), flags=re.S)
+        return hash(text.strip())
+
+    def run(self, model, clip, mode, hook=True):
+        text = re.sub(rf"@(\w+)\{{(.*?)\}}", lambda m: m.group(2) if m.group(1) == mode else "", atob_utf8(param.get("lora", "")), flags=re.S)
+
+        def apply(m):
+            nonlocal model, clip
+            name, w = m.group(1), float(m.group(2))
+            for file in folder_paths.get_filename_list("loras"):
+                if Path(file).name.startswith(name):
+                    if path := folder_paths.get_full_path("loras", file):
+                        model, clip = comfy.sd.load_lora_for_models(model, clip, comfy.utils.load_torch_file(path), w, w)
+                        print(f"FlipStreamLoadLora: loaded: {name} -> {path}")
+                        break
+            else:
+                print(f"FlipStreamLoadLora: LoRA not found: {name}")
+            return ""
+        
+        text = re.sub(r"\<lora:(.*?):(.*?)\>", apply, text).strip()
+        return (model, clip, text)
+
+
+class FlipStreamSaveApiWorkflow:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "savepath": ("STRING", {"default": ""}),
+                "override": ("BOOLEAN", {"default": False}),
+            },
+            "optional": {
+                "hook": (anytype,),
+            },
+            "hidden": {
+                "prompt": "PROMPT"
+            }
+        }
+
+    RETURN_TYPES = (anytype,)
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, savepath, override, hook=True, prompt=None):
+        p = Path(savepath)
+        if prompt and (override or not p.exists()):
+            p.write_text(json.dumps(prompt))
+            print(f"FlipStreamSaveApiWorkflow: saved {savepath}")
+        return (hook,)
+
+
+class FlipStreamRunApiWorkflow:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "path": ("STRING", {"default": ""}),
+                "enable": ("BOOLEAN", {"default": True}),
+            },
+            "optional": {
+                "hook": (anytype,),
+            }
+        }
+
+    RETURN_TYPES = (anytype,)
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, enable, path, hook=None):
+        if enable:
+            prompt = json.loads(Path(path).read_text())
+            print(f"FlipStreamRunApiWorkflow: queue {path}")
+            requests.post(f"http://127.0.0.1:{server.PromptServer.instance.port}/prompt", json={"prompt": prompt})
+        return (hook,)
+
+
+class FlipStreamFree:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "unload_models": ("BOOLEAN", {"default": True}),
+                "free_memory": ("BOOLEAN", {"default": True}),
+            },
+            "optional": {
+                "hook": (anytype,),
+            }
+        }
+
+    RETURN_TYPES = (anytype,)
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, unload_models, free_memory, hook=None):
+        requests.post(f"http://127.0.0.1:{server.PromptServer.instance.port}/free", json={"unload_models": unload_models, "free_memory": free_memory})
+        return (hook,)
+
+
+class FlipStreamShutdown:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "minutes": ("INT", {"default": 30, "min": 1}),
+            },
+            "optional": {
+                "hook": (anytype,),
+            }
+        }
+
+    RETURN_TYPES = (anytype,)
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "FlipStreamViewer"
+
+    def run(self, minutes, hook=True, **_):
+        subprocess.run(["shutdown", "/a"], stderr=subprocess.DEVNULL)
+        subprocess.run(["shutdown", "/s", "/t", str(minutes * 60)])
+        return (hook,)
+
+
+WEB_DIRECTORY = "./web"
 
 NODE_CLASS_MAPPINGS = {
     "FlipStreamSection": FlipStreamSection,
@@ -3040,6 +3662,8 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamInputBox": FlipStreamInputBox,
     "FlipStreamSelectBox_Samplers": FlipStreamSelectBox_Samplers,
     "FlipStreamSelectBox_Scheduler": FlipStreamSelectBox_Scheduler,
+    "FlipStreamSizeSelect": FlipStreamSizeSelect,
+    "FlipStreamGetSize": FlipStreamGetSize,
     "FlipStreamFileSelect_Checkpoints": FlipStreamFileSelect_Checkpoints,
     "FlipStreamFileSelect_Loras": FlipStreamFileSelect_Loras,
     "FlipStreamFileSelect_VAE": FlipStreamFileSelect_VAE,
@@ -3052,10 +3676,15 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamPreviewBox": FlipStreamPreviewBox,
     "FlipStreamPasteBox": FlipStreamPasteBox,
     "FlipStreamLogBox": FlipStreamLogBox,
-    "FlipStreamSetUpdateAndReload": FlipStreamSetUpdateAndReload,
+    "FlipStreamRunOnce": FlipStreamRunOnce,
     "FlipStreamSetMessage": FlipStreamSetMessage,
+    "FlipStreamAnd": FlipStreamAnd,
+    "FlipStreamOr": FlipStreamOr,
+    "FlipStreamSetState": FlipStreamSetState,
+    "FlipStreamGetState": FlipStreamGetState,
     "FlipStreamSetParam": FlipStreamSetParam,
     "FlipStreamGetParam": FlipStreamGetParam,
+    "FlipStreamGet": FlipStreamGet,
     "FlipStreamGetFrame": FlipStreamGetFrame,
     "FlipStreamGetPreviewRoi": FlipStreamGetPreviewRoi,
     "FlipStreamImageSize": FlipStreamImageSize,
@@ -3072,9 +3701,19 @@ NODE_CLASS_MAPPINGS = {
     "FlipStreamSegMask": FlipStreamSegMask,
     "FlipStreamChat": FlipStreamChat,
     "FlipStreamParseJson": FlipStreamParseJson,
+    "FlipStreamChatJson": FlipStreamChatJson,
     "FlipStreamBatchPrompt": FlipStreamBatchPrompt,
     "FlipStreamFilmVfi": FlipStreamFilmVfi,
     "FlipStreamViewer": FlipStreamViewer,
+    "FlipStreamViewerSimple": FlipStreamViewerSimple,
+    "FlipStreamAllowIp": FlipStreamAllowIp,
+    "FlipStreamCurrent": FlipStreamCurrent,
+    "FlipStreamLoraMode": FlipStreamLoraMode,
+    "FlipStreamLoadLora": FlipStreamLoadLora,
+    "FlipStreamSaveApiWorkflow": FlipStreamSaveApiWorkflow,
+    "FlipStreamRunApiWorkflow": FlipStreamRunApiWorkflow,
+    "FlipStreamFree": FlipStreamFree,
+    "FlipStreamShutdown": FlipStreamShutdown,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -3085,6 +3724,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamInputBox": "FlipStreamInputBox",
     "FlipStreamSelectBox_Samplers": "FlipStreamSelectBox_Samplers",
     "FlipStreamSelectBox_Scheduler": "FlipStreamSelectBox_Scheduler",
+    "FlipStreamSizeSelect": "FlipStreamSizeSelect",
+    "FlipStreamGetSize": "FlipStreamGetSize",
     "FlipStreamFileSelect_Checkpoints": "FlipStreamFileSelect_Checkpoints",
     "FlipStreamFileSelect_Loras": "FlipStreamFileSelect_Loras",
     "FlipStreamFileSelect_VAE": "FlipStreamFileSelect_VAE",
@@ -3097,10 +3738,15 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamPreviewBox": "FlipStreamPreviewBox",
     "FlipStreamPasteBox": "FlipStreamPasteBox",
     "FlipStreamLogBox": "FlipStreamLogBox",
-    "FlipStreamSetUpdateAndReload": "FlipStreamSetUpdateAndReload",
+    "FlipStreamRunOnce": "FlipStreamRunOnce",
     "FlipStreamSetMessage": "FlipStreamSetMessage",
+    "FlipStreamAnd": "FlipStreamAnd(experimental)",
+    "FlipStreamOr": "FlipStreamOr(experimental)",
+    "FlipStreamSetState": "FlipStreamSetState",
+    "FlipStreamGetState": "FlipStreamGetState",
     "FlipStreamSetParam": "FlipStreamSetParam",
     "FlipStreamGetParam": "FlipStreamGetParam",
+    "FlipStreamGet": "FlipStreamGet(experimental)",
     "FlipStreamGetFrame": "FlipStreamGetFrame",
     "FlipStreamGetPreviewRoi": "FlipStreamGetPreviewRoi",
     "FlipStreamImageSize": "FlipStreamImageSize",
@@ -3112,12 +3758,22 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FlipStreamSwitch": "FlipStreamSwitch",
     "FlipStreamSwitchImage": "FlipStreamSwitchImage",
     "FlipStreamSwitchLatent": "FlipStreamSwitchLatent",
-    "FlipStreamGate": "FlipStreamGate",
+    "FlipStreamGate": "FlipStreamGate(deprecated)",
     "FlipStreamRembg": "FlipStreamRembg",
-    "FlipStreamSegMask": "FlipStreamSegMask",
+    "FlipStreamSegMask": "FlipStreamSegMask(deprecated)",
     "FlipStreamChat": "FlipStreamChat",
     "FlipStreamParseJson": "FlipStreamParseJson",
+    "FlipStreamChatJson": "FlipStreamChatJson(experimental)",
     "FlipStreamBatchPrompt": "FlipStreamBatchPrompt",
     "FlipStreamFilmVfi": "FlipStreamFilmVfi",
     "FlipStreamViewer": "FlipStreamViewer",
+    "FlipStreamViewerSimple": "FlipStreamViewerSimple",
+    "FlipStreamAllowIp": "FlipStreamAllowIp",
+    "FlipStreamCurrent": "FlipStreamCurrent",
+    "FlipStreamLoraMode": "FlipStreamLoraMode",
+    "FlipStreamLoadLora": "FlipStreamLoadLora",
+    "FlipStreamSaveApiWorkflow": "FlipStreamSaveApiWorkflow",
+    "FlipStreamRunApiWorkflow": "FlipStreamRunApiWorkflow",
+    "FlipStreamFree": "FlipStreamFree",
+    "FlipStreamShutdown": "FlipStreamShutdown",
 }
