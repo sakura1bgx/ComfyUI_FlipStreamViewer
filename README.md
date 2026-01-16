@@ -171,7 +171,7 @@ python build_sage.py
 
 ## Workflow Examples
 
-These workflow are old.
+These workflow are sometimes old.
 
 - **simple.json**: Customized a ComfyUI default workflow for FlipStreamViewer UI nodes.
 - **dmd2_lora.json**: Using DMD2 and some LoRA, only needs 5 steps to generate an image.
@@ -181,6 +181,7 @@ These workflow are old.
 - **quick_vid2vid.json**: Quick tuning workflow for vid2vid.
 - **quick_vid2vid_roi.json**: An example demonstrating the use of FlipStreamGetPreviewRoi and FlipStreamGate.
 - **visualnobel.json**: Visual nobel like UI using FlipStreamChat.
+
 
 
 
