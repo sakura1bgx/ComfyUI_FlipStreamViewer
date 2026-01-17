@@ -12,8 +12,9 @@
 `http://localhost:8188/flipstreamviewer`
 
 4. To respond to viewer input:
-- Check 'Extra options', 'Auto Queue', and 'instant' on the ComfyUI control panel.
-- Then click the 'Queue Prompt' button.
+NOW NO NEED TO USE INSTANT MODE, JUST RUN.
+- ~~ Check 'Extra options', 'Auto Queue', and 'instant' on the ComfyUI control panel. ~~
+- ~~ Then click the 'Queue Prompt' button. ~~
 
 5. The UI nodes will refresh after the workflow is completed once, so you need to click 'Update' after that.
 
@@ -181,6 +182,7 @@ These workflow are sometimes old.
 - **quick_vid2vid.json**: Quick tuning workflow for vid2vid.
 - **quick_vid2vid_roi.json**: An example demonstrating the use of FlipStreamGetPreviewRoi and FlipStreamGate.
 - **visualnobel.json**: Visual nobel like UI using FlipStreamChat.
+
 
 
 
