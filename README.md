@@ -64,7 +64,7 @@ python -m pip install llama-cpp-python
 - **Status**: The right panel shows ComfyUI status and error information.
 - **Darker**: You can adjust the image brightness on the viewer using the darker parameter. It can also be set via query:
 `http://localhost:8188/flipstreamviewer?darker=0.33`
-- **Preset**: You can save and load parameters that are set on viewer controls. The 'M' button means Move to another folder. It can also be set via query:
+- **Preset**: You can save and load parameters that are set on viewer controls. There are joking level XOR crypt mode for preset files, it can be use with &px query. The 'M' button means Move to another folder. It can also be set via query:
 `http://localhost:8188/flipstreamviewer?showPresetDialog=1&presetFolder=folder_name&presetFile=file_name.json`
 - **Lora**: You can select LoRA and choose tags. It can also choose random tags. The LoRA preview box can be clicked to jump to the Civitai LoRA page if found. The 'M' button means Move to another folder. The 'T' button means Toggle. The 'R' button means Random choose.
 - **Toggle View**: You can click the center panel to hide the left/right panels and the message box, a subsequent click will show them. It can also be set via query: 
@@ -183,6 +183,7 @@ These workflow are sometimes old.
 - **quick_vid2vid.json**: Quick tuning workflow for vid2vid.
 - **quick_vid2vid_roi.json**: An example demonstrating the use of FlipStreamGetPreviewRoi and FlipStreamGate.
 - **visualnobel.json**: Visual nobel like UI using FlipStreamChat.
+
 
 
 
