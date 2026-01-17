@@ -167,7 +167,7 @@ python build_sage.py
 
 - The ComfyUI commandline option '--reserve-vram 2' may good, it will work as buffer.
 - Edit comfy code using try except pass around error points may practical for private use, but it may cause difficulty on update comfy.
-- FlipStreamSaveApiWorkflow, FlipStreamRunApiWorkflow, FlipStreamSetState, FlipStreamGet nodes are useful to separate workflow to avoid OOE, because comfy keeps cache on each workflow and the cache take up large memory. FlipStreamGet has independent cache system, it can bridge any data on workflows.
+- FlipStreamSaveApiWorkflow, FlipStreamRunApiWorkflow, FlipStreamSetState, FlipStreamGet nodes are useful to separate workflow to avoid OOE, because comfy keeps cache on each workflow and the cache take up large memory. FlipStreamGetState, FlipStreamGetParam, FlipStreamGet nodes have independent cache system, it can bridge any data on workflows.
 
 ## Workflow Examples
 
@@ -181,6 +181,7 @@ These workflow are sometimes old.
 - **quick_vid2vid.json**: Quick tuning workflow for vid2vid.
 - **quick_vid2vid_roi.json**: An example demonstrating the use of FlipStreamGetPreviewRoi and FlipStreamGate.
 - **visualnobel.json**: Visual nobel like UI using FlipStreamChat.
+
 
 
 
