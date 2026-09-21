@@ -20,7 +20,7 @@ app.registerExtension({
     async beforeRegisterNodeDef(t, d) {
         const config = {
             "FlipStreamGet":      { in: 0,  out: 2, range: 20, iname:'label', oname:'value', useo: true },
-            "FlipStreamChatJson": { in: 9, out: 3, range: 20, iname:'label', oname:'value', useo: true },
+            "FlipStreamChatJson": { in: 11, out: 3, range: 20, iname:'label', oname:'value', useo: true },
             "FlipStreamTextConcat": { in: 2, out: 1, range: 20, iname:'text', oname:'', useo: false }
         };
         const CFG = config[d.name];
@@ -54,11 +54,12 @@ app.registerExtension({
                 n.inputs_dirty = true;
             }
             n.setSize(n.computeSize());
+            n.setDirtyCanvas(true, true);
         };
 
         t.prototype.onNodeCreated = function() { sync(this); };
         t.prototype.onWidgetChanged = function() { sync(this); };
-        t.prototype.onConnectionsChange = function(type, slot, connected, info) { sync(this);};
+        t.prototype.onConnectionsChange = function(type, slot, connected, info) { requestAnimationFrame(() => sync(this)); };
 
         t.prototype.onConfigure = function(c) {
             c.widgets_values.forEach((v, i) => { if (this.widgets[i]) this.widgets[i].value = v; sync(this);});  
