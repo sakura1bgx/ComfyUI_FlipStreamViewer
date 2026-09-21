@@ -11,11 +11,7 @@
 
 `http://localhost:8188/flipstreamviewer`
 
-4. To respond to viewer input:
-
-- **NOW NO NEED TO USE INSTANT MODE, JUST RUN.**
-- ~~Check 'Extra options', 'Auto Queue', and 'instant' on the ComfyUI control panel.~~
-- ~~Then click the 'Queue Prompt' button.~~
+4. Run a workflow on the ComfyUI
 
 5. The UI nodes will refresh after the workflow is completed once, so you need to click 'Update' after that.
 
@@ -69,12 +65,16 @@ python -m pip install llama-cpp-python
 - **Lora**: You can select LoRA and choose tags. It can also choose random tags. The LoRA preview box can be clicked to jump to the Civitai LoRA page if found. The 'M' button means Move to another folder. The 'T' button means Toggle. The 'R' button means Random choose.
 - **Toggle View**: You can click the center panel to hide the left/right panels and the message box, a subsequent click will show them. It can also be set via query: 
 `http://localhost:8188/flipstreamviewer?toggleView=1`
+- **Run on Load**: The workflow can be run when the page is loaded via query:
+`http://localhost:8188/flipstreamviewer?run=1`
 - **Message Box**: If a message is set by FlipStreamSetMessage, you can view it at the top left of the center panel.
 - **Auto Hide**: Stream and preview in the viewer will automatically hide after 5 minutes if the page is not reloaded.
+- **Reset**: clears the queue, interrupts the current run and resets all viewer parameters, state and stream. It can be called via query:
+`http://localhost:8188/flipstreamviewer?reset=1`
 
 ## UI Nodes
 
-- **FlipStreamSection**: A section label for UI Nodes.
+- **FlipStreamSection**: A section label for UI Nodes. 'closed' makes the section collapsed initially.
 - **FlipStreamButton**: Run and Capture buttons. The Capture button can be use with FlipStreamGetFrame to get captured image.
 - **FlipStreamSlider**: A slider for adjusting values.
 - **FlipStreamTextBox**: A text box for inputting multiline text.
@@ -83,6 +83,7 @@ python -m pip install llama-cpp-python
 - **FlipStreamSelectBox_Scheduler**: A select box for choosing schedulers.
 - **FlipStreamSizeSelect**: A select box for choosing size by aspect ratio. The size can also get using FlipStreamGetSize.
 - **FlipStreamFileSelect_Checkpoints**: A file selector for checkpoints. 'mode' is used to select a subfolder such as 'sd15', 'sdxl', 'pony', or 'flux' in 'checkpoints'. 'use_sub' means using subfolders in the 'mode' folder. 'use_move' means using the move file selector.
+- **FlipStreamFileSelect_DiffusionModels**: A file selector for diffusion models.
 - **FlipStreamFileSelect_VAE**: A file selector for VAE models.
 - **FlipStreamFileSelect_LLM**: A file selector for LLM models.
 - **FlipStreamFileSelect_ControlNetModel**: A file selector for ControlNet models.
@@ -133,6 +134,8 @@ append text
 - **FlipStreamFilmVfi**: A node for video frame interpolation. It depends on ComfyUI-Frame-Interpolation.
 - **FlipStreamViewer**: A node for viewing content. The 'allowip' parameter allows you to set IP addresses that can access the viewer. ComfyUI commandline options "--listen 0.0.0.0" and appropriate firewall settings are also needed for that. The 'w14exc' parameter is used to set exclude_tags for the WD14 Tagger. 'fps' can control flip speed.
 - **FlipStreamViewerSimple**: Simplified FlipStreamViewer.
+- **FlipStreamViewerVideo**: Streams frames (and optional audio) to the viewer as a single MP4 instead of PNG frames, it is much faster for long or large videos. Audio is muted and the volume is 0 by default, the mute button and volume slider appear at the top left. FlipStreamGetFrame cannot get frames from the video stream.
+- **FlipStreamLogger**: Prints the input data to the console with a label.
 - **FlipStreamCurrent**: A node for setting current information text on the right panel status info.
 - **FlipStreamAllowIp**: A node for setting allowip.
 - **FlipStreamLoraMode**: A node for setting loraMode.
@@ -140,36 +143,6 @@ append text
 - **FlipStreamRunApiWorkflow**: A node for run an api workflow.
 - **FlipStreamFree**: A node for free model and comfy caches.
 - **FlipStreamShutdown**: A node for scheduling shutdown (Windows only).
-
-## For More Quality
-
-- Use more higher-quality checkpoint models.
-- To enhance stability between frames, use a deliberate prompt in the 'pre text' to establish a consistent background, such as `ideal background, on desk`.
-- Select the appropriate words or LoRA in 'frame text' to achieve the desired motion.
-
-## For More Speed
-
-- ComfyUI commandline options '--mmap-torch-files --fast' are good for speed, however it depends on system and model.
-- And '--use-sage-attention' option will good for RTX50xx speed up.
-```
-REM Before that, may be need to install Visual Studio 2022, VC++ development options and cmake. Also need to set PATH for git.
-REM Before that, setup the same version of comfyui python from official installer, then place include and libs in python_embeded.
-REM You can get build_sage.py from https://github.com/thu-ml/SageAttention/issues/228#issuecomment-3483944852
-set PATH=D:\ComfyUI_windows_portable\python_embeded;D:\ComfyUI_windows_portable\python_embeded\Scripts;%PATH%
-cd python_embeded
-python -m pip install ninja
-python -m pip install -U --pre triton-windows
-git clone https://github.com/thu-ml/SageAttention.git
-cd SageAttention
-copy ..\build_sage.py .
-python build_sage.py
-```
-
-## To Avoid OOM
-
-- The ComfyUI commandline option '--reserve-vram 2' may good, it will work as buffer.
-- Edit comfy code using try except pass around error points may practical for private use, but it may cause difficulty on update comfy.
-- FlipStreamSaveApiWorkflow, FlipStreamRunApiWorkflow, FlipStreamSetState, FlipStreamGet nodes are useful to separate workflow to avoid OOE, because comfy keeps cache on each workflow and the cache take up large memory. FlipStreamGetState, FlipStreamGetParam, FlipStreamGet nodes have independent cache system, it can bridge any data on workflows.
 
 ## Workflow Examples
 
@@ -183,14 +156,3 @@ These workflow are sometimes old.
 - **quick_vid2vid.json**: Quick tuning workflow for vid2vid.
 - **quick_vid2vid_roi.json**: An example demonstrating the use of FlipStreamGetPreviewRoi and FlipStreamGate.
 - **visualnobel.json**: Visual nobel like UI using FlipStreamChat.
-
-
-
-
-
-
-
-
-
-
-
